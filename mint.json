@@ -1,0 +1,75 @@
+{
+    "name": "DryMerge",
+    "logo": {
+      "light": "/logo/light.png",
+      "dark": "/logo/dark.png"
+    },
+    "favicon": "/favicon.svg",
+    "colors": {
+      "primary": "#3B82F6",
+      "light": "#74A9FE",
+      "dark": "#3B82F6"
+    },
+    "topbarCtaButton": {
+      "name": "Get Started",
+      "url": "https://auth.drymergeqa.com/en/signup"
+    },
+    "topbarLinks": [
+      {
+        "name": "Main Site",
+        "url": "https://drymerge.com/"
+      }
+    ],
+    "anchors": [
+      {
+        "name": "Dashboard",
+        "icon": "window",
+        "url": "https://auth.drymerge.com/en/login"
+      },
+      {
+        "name": "Contact",
+        "icon": "envelope",
+        "url": "mailto:founders@drymerge.com"
+      }
+    ],
+    "navigation": [
+      {
+        "group": "Introduction",
+        "pages": [
+            "introduction/what-is-dry-merge/page",
+            "introduction/getting-started/page"
+        ]
+      },
+      {
+        "group": "Engine Reference",
+        "pages": [
+            "engine-reference/overview/page",
+            "engine-reference/templating/page",
+            "engine-reference/entities/page",
+            "engine-reference/node-types/page",
+            "engine-reference/infra-types/page",
+            "engine-reference/template-types/page",
+            "engine-reference/running-drymerge-workflows/page",
+            "engine-reference/functions-and-sdk/page"
+        ]
+      },
+      {
+        "group": "CLI Reference",
+        "pages": [
+            "cli-reference/overview/page"
+        ]
+      },
+      {
+        "group": "Legal Policies",
+        "pages": [
+            "legal-policies/privacy-policy/page",
+            "legal-policies/terms-of-service/page",
+            "legal-policies/acceptable-use/page"
+        ]
+      }
+    ],
+    "footerSocials":
+      {
+          "linkedin": "https://www.linkedin.com/company/drymerge/"
+      }
+  }

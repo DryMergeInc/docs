@@ -1,0 +1,168 @@
+---
+title: Getting Started
+description: Let's make your account, set up your preferred development environment, and look at some examples.
+---
+
+
+<Steps>
+  <Step title="Sign Up">
+    Create an account and an organization.
+
+    **[Sign up here](https://auth.drymerge.com/en/signup)**
+  </Step>
+  <Step title="Subscribe">
+    Click the red "Unsubscribed" button, and subscribe.
+
+    **[Click red "Unsubscribed" button](https://www.drymerge.com/core/dash)**
+  </Step>
+  <Step title="Download CLI">
+    Run this command in your shell to download the DryMerge command-line interface.
+
+    ```sh
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/DryMergeInc/cli/main/install.sh)"
+    ```
+  </Step>
+  <Step title="CLI Login">
+    Run dry login in your shell, then follow CLI instructions.
+
+    ```sh
+    dry login
+    ```
+  </Step>
+  <Step title="Grafana Login">
+    Click "Sign in with AWS Iam Identity Center" and use the same email as above for your username.
+
+    **[Enter your email for username](https://g-e8fda214e4.grafana-workspace.us-west-2.amazonaws.com/)**
+  </Step>
+</Steps>
+
+
+Once that's all done, you're ready to go!
+
+## Hello World (In DryMerge)
+Let's build a simple API that returns "Hello World" when you hit the endpoint. Then, we can add on to it to make it a little more interesting.
+
+### Create a new file
+
+In your current directory, create a new file with the `.yaml` extension. At the top, specify your organization:
+
+ ```js
+organization: DryMerge
+ ```
+
+### Add your first node :)
+For now, let's make a simple node. We'll call it `hello-world` and it'll return "Hello World" when you hit the endpoint. There are three components we need to define for any API node: `id`, `request`, and `dependencies`. Let's think through them one by one.
+
+#### Define a node
+Nodes are defined within the `nodes` field, and given names and types with their id. The id is the key that defines how we refer to your API Node. The format is `[name].[type]`. We can do that for our node like this:
+
+```yaml
+nodes:
+    hello-world.api:
+        ...
+```
+Note that the `...` just indicates in the documentation that this is part of a bigger yaml object, it doesn't have any special meaning :)
+
+#### Define the request schema
+The request schema is a yaml object that defines HTTP requests that the node will make. Here, you can specify `body`, `url`, `headers`, `method`, or `params`. For example, a simple GET request to get the time could look like this:
+
+```yaml
+nodes:
+    get-time.api:
+        request:
+            url: https://worldtimeapi.org/api/timezone/America/San_Francisco
+            method: GET
+```
+
+Our node wll be simple. There's this neat endpoint that we set up at `https://std.drymerge.com/testing/reflect`, and it just sends your request body back at you. With that knowledge, we can get it to send `Hello World!` to us! Try to begin defining the request schema core yourself, and see how well it matches the version we set up below:
+
+```yaml
+  ...
+    request:
+        url: https://std.drymerge.com/testing/reflect
+        method: POST
+        headers:
+            Content-Type: application/json
+        body:
+            message: Hello World!
+  ...
+```
+
+#### Define the dependency schema
+The dependency schema is a yaml object that defines the dependencies of the node. This node doesn't need any dependencies, but let's show how we could check the time before calling it.
+
+Here, we say to call the node with id `get-time.api` before we call our Hello World api. We've also aliased the response to `time`, which we could use to access any part of the response body.
+```yaml
+nodes:
+    hello-world.api:
+        request:
+            ...
+        dependencies:
+            time:
+                id: get-time.api
+```
+
+#### Put it all together
+Now that we have all the components, we can put it all together into one big yaml file. It'll look like this:
+
+```yaml
+organization: DryMerge
+version: 1
+nodes:
+  hello-world.api:
+    request:
+      url: https://std.drymerge.com/testing/reflect
+      method: POST
+      headers:
+        Content-Type: application/json
+      body:
+        dry_string:
+          message: 'Hello World! (at {{time.body.datetime}})'
+    dependencies:
+      time:
+        id: get-time.api
+    get-time.api:
+        request:
+            url: https://worldtimeapi.org/api/timezone/America/San_Francisco
+            method: GET
+```
+
+Save this yaml file and keep track of the path.
+
+### Upload your node
+
+Now, we can upload our node to the DryMerge engine after which we can run it from anywhere. Simply use the `dry up` command like this:
+
+```shell
+dry up <path-to-your-yaml>
+```
+
+You should get a success message! If not, make sure that you're authenticated and that you've provided the right path to your yaml.
+### Call your node
+This is the whole point of a node, right? Let's call it! There are two ways to call your node: via the CLI or via the API.
+
+### Call your node via the CLI
+If you're using the CLI, you can use the `dry run` command to run your node like this:
+
+```shell
+dry run hello-world.api
+```
+
+### Call your node via the API
+Both the CLI and browser make underlying calls to the DryMerge API. You can make one of these calls yourself if you want to! One way to do it is via curl, like this:
+
+```bash
+curl --location --request POST 'https://drymerge.com/execute/<my-organization>/~/hello-world.api' \ 
+```
+
+### Other ways to call your node
+You could call your node via an API testing tool like Postman or Insomnia or via a programming language like Python or Javascript. The possibilities are endless!
+
+## Moving Forward
+
+
+1. You can find the configuration language documentation [here](https://drymerge.com/docs/language-reference/overview) to learn more about how to build DryMerge integrations.
+
+2. If you want to see how it's used in practice, we'll do walkthroughs and list examples for more complicated use cases that highlight all the features you can use [here](https://docs.drymerge.com/language-reference/examples).
+
+3. If you want to learn more about the DryMerge CLI, you can find the documentation [here](https://drymerge.com/docs/cli-reference/overview).

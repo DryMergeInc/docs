@@ -1,0 +1,138 @@
+---
+title: "Templating"
+description: "JSON templating is, simply put, copying objects from one JSON object into another JSON object. In the context of DryMerge, we have a `context` object that contains a bunch of data we'd like to transfer into a more functional object (such as an API call). JSON templating makes DryMerge declarative, so let's look into how we can use it. For the rest of the section, assume we're using this sample `context` object. If it helps your mental model, pretend this is the result of an API call to an endpoint like `/households/1234`"
+---
+
+```json
+{
+  "human": {
+    "name": "John Doe",
+    "age": 30,
+    "address": {
+      "street": "123 Main St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94105"
+    }
+  },
+  "pet": {
+    "name": "Fido",
+    "age": 5,
+    "species": "dog"
+  }
+}
+```
+## DryValues
+
+### Basic Hydration
+DryValues are the simplest form of templating. They allow you to reference a value from the hydrator object and use it in your DryMerge script. For example, if we wanted to use the `name` field from the `human` object, we could do so like this:
+
+```yaml
+name:
+  dry_value": "{{human.name}}"
+```
+
+When we evaluate this in the DryMerge engine, it will turn into...
+
+```json
+{
+  "name": "John Doe"
+}
+```
+
+Super simple!
+
+### Schema Validation
+A lot of the time you need to impose guarantees on the structure of your DryValue to ensure that you're getting passed the right data. You can do this with the `schema` field. For example, if we wanted to ensure that the `name` field was a string, we could do so like this:
+
+```yaml
+name:
+  dry_value: '{{human.name}}'
+  schema: 
+    type: string
+```
+
+The `schema` field defines a JSON schema that the value must match. If it doesn't match, the DryMerge engine will throw an error. You can read more about JSON schemas [here](https://json-schema.org/understanding-json-schema/index.html).
+
+### Default Values
+If there's an error with validation but it's recoverable, you might want to add a default value. You can do this with the `default` field. For example, if we wanted to default to "Unknown" if the `name` field was missing, we could do so like this:
+
+```json
+{
+  "custom-name": {
+    "dry_value": "{{human.name}}",
+    "schema": {"type": "string"},
+    "default": "Unknown"
+  }
+}
+```
+
+Say the `human` API changed and name is now, for some reason, an integer. In this case, we'd fail validation but instead of erroring out, we'd default to `"Unknown"`.
+
+
+
+## DryStrings
+
+### Basic Hydration
+Strings are really common and thus really special. For `DryValues`, you can only index into one object. For `DryStrings`, you can index into as many objects as you want. For example, if we wanted to use the `name` field from the `human` object and the `name` field from the `pet` object, we could do so like this:
+
+```yaml
+  custom-name: 
+    dry_string: "{{human.name}} and {{pet.name}}"
+```
+
+When we evaluate this in the DryMerge engine, it will turn into...
+
+```json
+{
+  "custom-name": "John Doe and Fido"
+}
+```
+
+### Regex Validation
+Just like with DryValues, a lot of the time you need to impose guarantees on the structure of your DryString to ensure that you're getting passed the right data. You can do this with the `matches` field. For example, if we wanted to ensure that the `name` field didn't contain any numbers or special characters, we could do...
+
+```yaml
+custom-name: 
+  dry_string: "{{human.name}} and {{pet.name}}"
+  matches: "^[a-zA-Z ]+$"
+```
+
+### Default Values
+Again, just like with DryValues, if there's an error with validation but it's recoverable, you might want to add a default value. You can do this with the `default` field. For example, if we wanted to default to "Unknown" if the `name` field was missing, we could do so like this:
+
+```yaml
+custom-name:
+    dry_string: "{{human.name}} and {{pet.name}}",
+    matches: "^[a-zA-Z ]+$",
+    default: "Unknown"
+```
+
+
+
+So if for some reason our `human` API changed and `name` was now an integer, we'd fail validation but instead of causing an unrecoverable error, we'd default to `"Unknown"`.
+
+## DryBlocks
+DryBlocks are the most powerful form of templating. They allow you to use the full power of the DryMerge engine to create complex objects. They allow for arbitrary substitution in all keys and values of a JSON object. Since they're the most powerful, they also offer the least guarantees: we can't validate the structure of the object you're creating. As such, we have no schema or regex field. 
+
+For example, if we wanted to create a new object with the `name` field from the `human` object and the `street` field from the `address` object, we could do so like this:
+
+```yaml
+dry_block:
+  household@{{human.address.street}}:
+    my_key: "{{human.name}}"
+    my_value: "{{human.address.street}}"
+```
+
+When we evaluate this in the DryMerge engine, it will turn into...
+
+```json
+{
+  "household@123 Main St": {
+    "my_key": "John Doe",
+    "my_value": "123 Main St"
+  }
+}
+```
+
+But we can't check that it fits a certain schema or regex. Use it with caution! Usually, the right thing to do is use typing with `dry_string` or `dry_value` and then use `dry_block` to create the final object.

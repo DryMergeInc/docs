@@ -1,0 +1,359 @@
+---
+title: "Node Types"
+description: "DryMerge workflows are dependency graphs, in which there are are different types of nodes. Nodes are building blocks and do a certain logical operation, such as an API call, function call, data manipulation, or basic control flow. Data passed between nodes is stored in a context, which is a JSON object that can be accessed and modified by nodes. We'll go through all the types of nodes below..."
+---
+
+## ApiNodes
+
+### What Are ApiNodes?
+
+`ApiNodes` are the building blocks of any DryMerge configuration. They are lightweight wrappers that declaratively represent individual API calls. `ApiNodes` express the full body of an API call (including the url, headers, and body), and critically come equipped with templating features, allowing for dynamic API requests based on user inputs and the outputs from other `ApiNodes` within the `context`.
+
+### The Structure of ApiNodes
+
+An `ApiNode` consists of several crucial fields:
+
+- **`id`:** A unique identifier for the node, following the `[organization]/[namespace]/[name].[type]:[version]` format.
+- **`request`:** Describes the API request in detail, which can be either an id (of an existing request object) or a more comprehensive schema.
+- **`dependencies`:** A mapping of dependencies that need to be resolved before executing the node. Each dependency is identified by a string and includes its id and optional arguments.
+- **`transform`:** (Optional) A list of transformations to apply to the output of the node.
+- **`map`:** (Optional) Specifies a field in the context that contains an iterable. The node will be applied to each element of the iterable.
+- **`perms`**: (Optional) Permissions related to the node.
+
+#### Subfields of `request`
+
+The `request` field has its own nested subfields:
+
+- **`method`**: The HTTP method (e.g., GET, POST).
+- **`url`**: The URL endpoint for the API call.
+- **`headers`**: (Optional) Additional HTTP headers, if any.
+- **`params`**: (Optional) Query parameters to pass to the API call.
+- **`proxy`**: (Optional) Specifies a proxy if the request is to be routed through one.
+- **`body`**: (Optional) Contains the data payload for the API request. Typically used for methods like POST and PUT.
+
+#### `dependencies` Field
+
+The `dependencies` field is used to specify other `ApiNodes` or objects that the current `ApiNode` depends on. Each dependency comes with:
+
+- `id`: The id of the dependency, which is resolvable to find a real node or state object.
+- `args`: (Optional) Arguments to pass to the dependency when it's invoked.
+
+### Composing ApiNodes
+
+`ApiNodes` excel in their composability. They can rely on data from other nodes or objects specified in their `dependencies`. This allows for the creation of complex workflows.
+
+### Examples
+
+### Example 1: Lightweight ApiNode
+
+The following is a simple `ApiNode` example that makes a GET request to fetch user account data from Twitter.
+
+```yaml
+drymerge/social/fetch-twitter-user-data.api:
+  request:
+    method: GET
+    url:
+      dry_string: "https://api.twitter.com/2/users/{{context.twitter_user_id}}"
+    headers:
+      Authorization:
+        dry_string: "Bearer {{context.twitter_token}}"
+```
+
+### Example 2: Composite ApiNode
+
+This example demonstrates a more complex `ApiNode` that composes calls to two different APIs: twitter and reddit.
+
+```yaml
+# Generic Twitter ApiNode to fetch user data
+drymerge/social/fetch-twitter-user.api:
+  request:
+    method: GET
+    url:
+      dry_string: "https://api.twitter.com/2/users/{{context.twitter_user_id}}"
+    headers:
+      Authorization:
+        dry_string: "Bearer {{context.twitter_token}}"
+
+# Composite Reddit ApiNode to create a post
+drymerge/social/create-reddit-post.api:
+  request:
+    method: POST
+    url:
+      dry_string: "https://api.reddit.com/r/{{context.subreddit}}/submit"
+    headers:
+      Authorization:
+        dry_string: "Bearer {{context.reddit_token}}"
+    body:
+      title: "Interesting Information about Twitter Users"
+      text: 
+        dry_string: "User 1: {{context.twitter_user1.result}}, User 2: {{context.twitter_user2.result}}, User 3: {{context.twitter_user3.result}}"
+  dependencies:
+    twitter_user1:
+      id: drymerge/social/fetch-twitter-user.api
+      args:
+        twitter_user_id:
+          dry_string: "{{context.user1_id}}"
+    twitter_user2:
+      id: drymerge/social/fetch-twitter-user.api
+      args:
+        twitter_user_id:
+          dry_string: "{{context.user2_id}}"
+    twitter_user3:
+      id: drymerge/social/fetch-twitter-user.api
+      args:
+        twitter_user_id:
+          dry_string: "{{context.user3_id}}"
+```
+
+In this example, the `create-reddit-post` API node calls `fetch-twitter-user.api` to gather information on 3 twitter users. It then constructs a POST request to create a new reddit post with the twitter user information.
+
+With these examples, you can see how `ApiNodes` offer a powerful, flexible way to represent API calls and workflows, ranging from simple data fetches to complex compositions.
+
+
+## Merge Nodes
+
+### What Are Merge Nodes?
+
+Merge nodes are designed for data aggregation. They allow you to merge outputs from multiple dependencies. You can selectively index, transform, or nest these outputs to form a new output that fits your desired data model.
+
+### The Structure of Merge Nodes
+
+A `Merge` node consists of several key fields:
+
+- **`id`:** A unique identifier for the node, adhering to the `[organization]/[namespace]/[name].[type]:[version]` format.
+- **`merge`:** Specifies how to aggregate the data from dependencies.
+- **`dependencies`:** A mapping of dependencies that provide the data to be merged.
+- **`config`:** (Optional) Node-specific configuration settings.
+- **`map`:** (Optional) Specifies a field in the context that contains an iterable. The node will be applied to each element of the iterable.
+- **`transform`:** (Optional) A list of transformations to apply to the output of the node.
+- **`perms`**: (Optional) Permissions related to the node.
+#### `merge` Field
+
+The `merge` field describes how to aggregate data from various dependencies. By using templating, it can index into the JSON objects returned by those dependencies.
+
+#### `dependencies` Field
+
+The `dependencies` field specifies other `ApiNodes` or objects that the `Merge` node relies on for data. Each dependency has:
+
+- `id`: The id of the dependency.
+- `args`: (Optional) Arguments to pass to the dependency when it's invoked.
+
+### Example: Merge Node
+
+Here's an example:
+
+```yaml
+drymerge/myecommerce/combine-product-data.merge:
+  merge:
+    productName:
+      dry_string: "{{dependencies.product-details.name}}"
+    productPrice:
+      dry_string: "{{dependencies.product-details.price}}"
+    reviews:
+      dry_string: "{{dependencies.product-reviews}}"
+  dependencies:
+    product-details:
+      id: drymerge/myecommerce/get-product-details.api
+      args:
+        productId:
+          dry_string: "{{context.productId}}"
+    product-reviews:
+      id: drymerge/myecommerce/get-product-reviews.api
+      args:
+        productId:
+          dry_string: "{{context.productId}}"
+```
+
+In this example, the Merge node takes the `name` and `price` fields from the `product-details` dependency and the entire `product-reviews` dependency, then merges them into a new JSON object.
+
+## Route Nodes
+
+In DryMerge, the `Route` node acts as a decision-making entity, directing the flow of execution based on specified conditions. It's akin to a switch statement in programming, where based on a certain value, different actions (or routes) are taken.
+
+### Structure of Route Nodes
+
+A `Route` node is composed of the following primary fields:
+
+- **`id`:** A unique identifier for the node, adhering to the `[organization]/[namespace]/[name].[type]:[version]` format.
+- **`value`:** The value against which conditions will be checked. This can be a JSON value, potentially templated.
+- **`match`:** A list of match blocks where each block specifies:
+    - `check`: A JSON schema against which the `value` is validated.
+    - `then`: The dependency to invoke if the check is successful.
+- **`base`:** (Optional) A default dependency to use if no match block's condition is satisfied.
+- **`map`:** (Optional) Specifies a field in the context that contains an iterable. The node will be applied to each element of the iterable.
+- **`transform`:** (Optional) A series of transformations to apply on the node's output.
+- **`perms`:** (Optional) Permissions associated with the node.
+- **`metadata`:** (Optional) Additional metadata related to the node.
+
+### `match` Field
+
+The `match` field delineates the logic for routing:
+
+- **`check`:** A JSON schema that the `value` should satisfy.
+- **`then`:** The action (or dependency) to execute if the `check` condition is met.
+
+### Example: Route Node
+
+Consider the following configuration:
+
+```yaml
+- id: drymerge/weatherapp/route-weather-source.route
+  value:
+    dry_string: "{{context.weatherSource}}"
+  match:
+    - check:
+        type: "string"
+        enum: ["WeatherAPI"]
+      then:
+        id: drymerge/weatherapp/weather-api.api
+    - check:
+        type: "string"
+        enum: ["OpenWeather"]
+      then:
+        id: drymerge/weatherapp/open-weather.api
+  base:
+    id: drymerge/weatherapp/default-weather.api
+```
+
+In this example, the Route node assesses the context.weatherSource value. If it aligns with "WeatherAPI", the flow is directed to the weather-api.api node. For a match with "OpenWeather", it redirects to the open-weather.api. In the absence of any matches, it defaults to the default-weather.api.
+
+In this example, the Route node checks the value of `context.weatherSource`. If it matches "WeatherAPI", it routes the call to the `weather-api.api` node. If it matches "OpenWeather", it routes to `open-weather.api`. If no match is found, it defaults to `default-weather.api`.
+
+## Function Nodes
+
+### What Are Function Nodes?
+
+Function nodes, denoted as `fn` in DryMerge, provide a means to incorporate custom functions into the DryMerge workflow. These functions can be defined in any programming language and hosted in various environments, such as cloud servers, serverless platforms, Virtual Private Clouds (VPCs), or even localhost, thereby offering significant flexibility and extensibility to the DryMerge ecosystem.
+
+### The Structure of Function Nodes
+
+A Function node comprises several key fields, each of which plays a vital role in defining the function and its behavior within the DryMerge workflow:
+
+- **`id`**: A unique identifier for the node, adhering to the `[organization]/[namespace]/[name].[type]:[version]` format.
+- **`name`**: The name of the function, used for referencing within the DryMerge YAML and SDK.
+- **`with`**: (Optional) The JSON value that can be passed to the function when it's invoked.
+- **`proxy`**: (Optional) Specifies a `ProxyHandler` which denotes the queue that the function listens to for receiving messages from DryMerge.
+- **`dependencies`**: (Optional) A mapping of dependencies that provide data to the function.
+- **`map`**: (Optional) Specifies a field in the context that contains an iterable. The node will be applied to each element of the iterable.
+- **`transform`**: (Optional) A list of transformations to apply to the output of the node.
+- **`store`**: (Optional) A list of operations that manipulate the state.
+- **`metadata`**: (Optional) Additional metadata related to the node.
+- **`error`**: (Optional) Specifies a module that handles errors during node execution.
+- **`perms`**: (Optional) Permissions related to the node.
+
+#### Example Structure of a Function Node
+
+```yaml
+mypythonfunc.fn:
+  name: mypythonfunc
+  proxy:
+    mypythonworker.queue
+```
+
+### Composing Function Nodes
+
+Function nodes are primarily defined in two steps:
+
+1. **YAML Definition**: The function node is defined in the DryMerge YAML, specifying its name and proxy handler.
+
+2. **SDK Definition**: In the codebase, the function is defined and routed using the DryMerge SDK. This involves initializing the SDK client and routing the function name specified in the YAML to a predefined function in the codebase.
+
+#### Example in Python
+
+```python
+from drymerge import DryClient
+client = DryClient(api_key="<my-drymerge-api-key>").route("mypythonfunc", my_predefined_function)
+```
+### Function Node Operational Workflow
+
+When a route is defined in DryMerge through the CLI, a handler is installed which listens for messages from a queue generated by the DryMerge server. Upon availability of new work, the handler retrieves the message from the queue and forwards it to the defined function. The function processes the task and returns whatever result it generates back to the DryMerge server.
+
+This mechanism negates the necessity for exposing an API endpoint and allows for easy testing from various environments including localhost. Language agnosticism is also a benefit – as long as you can connect to a queue and transmit a message, DryMerge is compatible. Although SDKs are provided in Python and TypeScript to facilitate the process (and potentially more upon request), you can also directly utilize the DryMerge API to link your function to DryMerge.
+
+## Search Nodes
+
+### What Are Search Nodes?
+
+`SearchNodes` in DryMerge allow users to search within arbitrary text data for specific fields and return the results as a JSON object. This offers a flexible and powerful way to extract desired information from diverse content sources.
+
+### The Structure of Search Nodes
+
+A `SearchNode` comprises several primary fields:
+
+- **`id`:** A unique identifier for the node, adhering to the `[organization]/[namespace]/[name].[type]:[version]` format.
+- **`content`:** The data or content to be searched. This can be directly provided or templated based on the context.
+- **`search`:** A list of fields to search within the content. Each search field is defined with a name, type, and description.
+- **`dependencies`:** (Optional) A mapping of dependencies that provide data to the search node.
+- **`map`:** (Optional) Specifies a field in the context that contains an iterable. The node will be applied to each element of the iterable.
+- **`transform`:** (Optional) A list of transformations to apply to the output of the node.
+- **`store`:** (Optional) A list of operations that manipulate the state.
+- **`error`:** (Optional) Specifies a module that handles errors during node execution.
+- **`perms`:** (Optional) Permissions related to the node.
+- **`metadata`:** (Optional) Additional metadata related to the node.
+
+### `search` Field
+
+Each entry in the `search` list defines a field to search for within the `content`. It has the following attributes:
+
+- **`name`:** The name of the search field.
+- **`description`:** A brief description about the search field.
+- **`type`:** The type of the field being searched. It can be one of the following:
+  - `string`: For searching textual content.
+  - `object`: For searching nested or structured content. This type can also specify subfields to search within.
+  - `number`: For searching numerical content.
+  - `boolean`: For searching boolean content.
+- **`array`:** (Optional) A boolean indicating if the search field is an array.
+
+### Example: Search Node
+
+Here's an example demonstrating the use of a `SearchNode`:
+
+```yaml
+tester.search:
+  content:
+    dry_value: '{{context.country}}'
+  search:
+    - name: 'capital'
+      description: "What's the capital of the country?"
+      type: string
+    - name: 'currency'
+      description: "What currency does the country use?"
+      type: string
+  dependencies:
+    country:
+      id: country.api
+      args:
+        name: 'Germany'
+```
+In this example, the SearchNode is set up to search for the capital and currency of a given country. It depends on the country.api node to provide the country information as arbitrary text. The search results are returned as a JSON object like so:
+```json
+{
+  "capital": "Berlin",
+  "currency": "Euro"
+}
+```
+
+## States Nodes
+
+### What Are States?
+
+States in DryMerge serve as persistent entities that allow lightweight stateful behavior for workflows. Because `Nodes` are stateless by design, all stateful attributes and behaviors are encapsulated in `States`.
+
+
+### Data Storage
+States are really good for storing and retrieving lightweight JSON objects/data for future use without having to use a managed database service like Postgres or Mongo. You can add objects to a state by calling the `state/change` endpoint, which allows you to specify a JSON index into the object such as `mydata.searches.myfirstsearch` and change it to a json object like ```{"search_engine": "google", "search_text": "How do I modify state in DryMerge?"}```. You can use that value in an `ApiNode` by listing the state object as a dependency as in this example:
+
+```yaml
+- id: my-namespace/search.api
+  request:
+    method: GET
+    url: "https://api.google.com/search"
+    params:
+      query:
+        dry_string: "{{context.mydata.searches.myfirstsearch.search_text}}"
+  dependencies:
+    mydata:
+      id: state/my-namespace/mydata.state
+```
+
+

@@ -1,0 +1,136 @@
+---
+title: "Triggers"
+description: "DryMerge supports infrastructure to autonomously kick off workflows when events happen or on a schedule. The two types used to accomplish this are `Triggers` and `CronJobs`, and they're declared in the `infra` section of a DryMerge configuration file."
+---
+
+## What Are `Triggers`?
+
+`Triggers` in DryMerge are predefined sets of actions that get executed when certain conditions are met. They essentially allow for an automated response to specific events or changes in data.
+
+### The Structure of `Triggers`
+
+A `Trigger` object comprises several key fields:
+
+- **`id`**: A unique identifier for the trigger.
+- **`check`**: Specifies which `ApiNode` to run to fetch the data that will be checked by the trigger's conditions.
+- **`conditions`**: A list of conditions based on the data diff that must be true for the trigger to fire.
+- **`then`**: The action to execute when the trigger fires.
+- **`perms`**: (Optional) Permissions related to the trigger.
+- **`metadata`**: (Optional) Additional data about the trigger.
+- **`running`**: A boolean flag indicating if the trigger is currently active. Defaults to `false`.
+
+The conditions within the `Triggers` use the `JsonDiffWorker` mechanism, which provides powerful tools like JMESPath queries and JSON schema validation to define sophisticated conditions.
+
+Each condition in the `conditions` list has a set of attributes:
+
+- **`field`**: (Optional) If specified, only checks this field from the fetched data.
+- **`before`, `after`, `diff`, `reverse_diff`**: These attributes are used to inspect changes in the fetched data. Specifically, they're JsonDiff expressions that allow you to compare the data before and after the `check` is executed. `before` and `after` represent the results of the check prior to the current timestep and at the current timestep. The `diff` and `reverse_diff` attributes represent the difference between the `before` and `after` data, and the difference between the `after` and `before` data, respectively. These are usually used for iterables (e.g. two lists, before and after); if the `diff` or `reverse_diff` is empty, that means there's no difference between the two iterable data sets.
+
+#### Diving into JsonDiff Expressions
+
+The `JsonDiffWorker` in the Rust code is a core component of these expressions. It provides two primary mechanisms for validating conditions:
+
+1. **JMESPath Query (`query`)**: JMESPath is a query language for JSON. This attribute allows you to specify a JMESPath query that's executed on the fetched data. If the query returns a boolean `false` or if there's any error in execution, the validation fails.
+
+2. **JSON Schema Validation (`schema`)**: You can specify a JSON schema against which the fetched data is validated. If the data doesn't conform to the schema, the validation fails.
+
+In other words, for a `JsonDiffWorker` to validate successfully, any specified JMESPath query must return `true`, and if a schema is provided, the fetched data must validate against that schema. If either of these conditions isn't met, the worker's validation fails.
+
+#### Practical Implications
+
+With the combination of JMESPath queries and JSON schema validation, you can create sophisticated conditions for your triggers. For example, you can trigger an action if:
+
+- A specific field in your fetched data surpasses a certain threshold (using JMESPath).
+- The entire fetched data conforms to a certain structure or set of constraints (using JSON schema).
+
+This dual mechanism ensures both fine-grained control (via JMESPath) and broad structural validation (via JSON schema), giving you flexibility and power in defining your trigger conditions.
+
+
+### Example: Monitoring New Commits on GitHub with `Triggers`
+
+Using DryMerge, you can easily set up a trigger to monitor new commits to a specific branch in a GitHub repository.
+
+Here's how you can achieve this:
+
+```yaml
+organization: DryMerge
+version: 1
+
+infra:
+  github/new-commit.trigger:
+    running: true
+    check:
+      hit:
+        id: github/monitor-commits.api
+      schedule: '1/5 * * * * *'
+    conditions:
+      if-new-commit:
+        - field: 'commits'
+          diff:
+            query: 'length(@) > `0`'
+    then:
+      hit:
+        id: notifications/send-alert.api
+        with:
+          message: 'New GitHub commit detected!'
+nodes:
+  github/monitor-commits.api:
+    request:
+      url: 'https://api.github.com/repos/DryMergeInc/graphapi/commits'
+      method: GET
+      headers:
+        Authorization: 'Bearer YOUR_ACCESS_TOKEN'
+        User-Agent: 'DryMerge'
+```
+
+In this configuration:
+
+1. A trigger named github/new-commit.trigger is set up to monitor new commits to the specified GitHub repository.
+2. The trigger checks for new commits every 5 seconds.
+3. If a new commit is found, an API call is made to notifications/send-alert.api to send an alert about the new commit.
+
+
+## What Are `CronJobs`?
+
+`CronJobs` in DryMerge allow for the execution of specific actions at predefined intervals. They provide the functionality to autonomously run certain tasks without manual initiation.
+
+### The Structure of `CronJobs`
+
+A `CronJob` object has the following primary fields:
+
+- **`id`**: A unique identifier for the cron job.
+- **`hit`**: The API integration to call when the cron job runs.
+- **`schedule`**: A cron expression that determines the timing of the job.
+- **`perms`**: (Optional) Permissions related to the cron job.
+- **`metadata`**: (Optional) Additional data about the cron job.
+- **`running`**: A boolean flag indicating if the job is currently running. Defaults to `false`.
+
+The `hit` field in `CronJobs`, similar to that in `Triggers`, describes how the DryMerge integration will be called. It's not a dependency but acts as a foreign user calling the API with specific arguments (and potentially, with a configuration).
+### Example: Sending a Daily Report with `CronJobs`
+
+DryMerge allows you to automate tasks that should be executed on a fixed schedule. In this example, we'll demonstrate how to set up a CronJob that sends a daily report email.
+
+```yaml
+organization: DryMerge
+version: 1
+
+infra:
+  reports/send-daily-email.cron:
+    hit:
+      id: reports/generate-and-send.api
+      with:
+        email: "user@example.com"
+    schedule: "1/0 9 * * *"
+    running: true
+
+  reports/generate-and-send.api:
+    request:
+      method: POST
+      url: "https://api.mailserver.com/send-email"
+      headers:
+        Authorization: 'Bearer YOUR_MAILSERVER_TOKEN'
+      body:
+        subject: "Daily Report"
+        content: "Your daily report content goes here."
+        to: "{{context.email}}"
+```

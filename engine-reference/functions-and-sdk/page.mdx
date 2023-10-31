@@ -1,0 +1,31 @@
+---
+title: "Functions and the SDK"
+description: "DryMerge allows you to connect arbitrary functions defined in any language to your workflow -- this allows you to integrate arbitrary existing code (regardless of whether you've hoste it in the cloud, on serverless, behind a VPC, or even on localhost)  to your API graph. This is powerful, since it allows you to (1): trigger highly internal tasks that don't expose APIs when any (external or internal) event occurs. "
+---
+
+## Defining a Function
+There's two steps to connecting a function to DryMerge. First, we need to define the function in our DryMerge YAML. This is done by adding a `fn` node; this node can be hooked up to any other entity in the DAG (and thus can be connected to a trigger, a cronjob, or as a component in a workflow).
+```yaml
+mypythonfunc.fn:
+    name: mypythonfunc
+    proxy:
+      mypythonworker.queue
+```
+
+Then, we need to define it in our codebase. In the python example, we can simply use the DryMerge SDK to define a route. 
+
+```python
+from drymerge import DryClient
+client = DryClient(api_key="<my-drymerge-api-key>").route("mypythonfunc", my_predefined_function)
+```
+
+Here we initialize the client and route the function name in our yaml to some predefined python function. Note that the python function should take one argument, which is a JSON payload of the data DryMerge will pass to the function (such as the results of dependent API calls). Usually, this just means you can create a lambda wrapper and pass it to some existing function in your codebase like...
+
+```python
+client = DryClient(api_key="<my-drymerge-api-key>").route("mypythonfunc", my_predefined_function)
+```
+
+
+## How it Works
+When you define a route in DryMerge via the CLI, you're installing a handler that listens for messages from a queue produced by the DryMerge server. When new work is available, the handler will pull the message from the queue and pass it to the function you defined. The function will do work and submit whatever result it wants back to the DryMerge server. This means that you don't need to worry about exposing an API endpoint (and you can test from localhost or any other environment super easily). It also means we're agnostic about what language you use to write your functions -- as long as you can connect to a queue and send a message, you can use DryMerge. We support SDKs in Python and Typescript to make this process as easy as possible (and we'd love to make more -- contact us if you need one), but you can also just use the DryMerge API directly to connect your function to DryMerge.
+

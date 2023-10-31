@@ -1,0 +1,18 @@
+---
+title: "Overview"
+description: "DryMerge is a YAML-based configuration format used to define workflows. We focus on defining two things: the infrastructure used to kick off the workflow and the shape of the workflow itself. "
+---
+
+## Workflow Infrastructre 
+We have two types of workflow infra: triggers and cronjobs. Triggers are used to kick off workflows based on events, such as a new row being added to a database or a new file being uploaded to a bucket. Cronjobs are used to kick off workflows at a regular interval, such as every 5 minutes or every day at 3pm.
+
+## Workflow Shape
+DryMerge workflows are defined as a dependency graph. Each node in the graph is a DryMerge entity, which can represent an API call, a function, or a data manipulation.  With a dependency graph, we're able to cleanly represent all sorts of common workflows.  
+
+
+## What next?
+We can walk you through the basics of how DryMerge config starting in the [next section](/language-reference/templating/page).
+
+
+
+

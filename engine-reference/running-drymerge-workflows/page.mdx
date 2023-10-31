@@ -1,0 +1,72 @@
+---
+title: "Running Workflows"
+description: "DryMerge workflows are typically invoked via the `api.drymerge.com/execute/[id]` endpoint. Initiating this endpoint causes DryMerge to set up the API Graph rooted at the provided ID and starts the execution based on the DryMerge configuration. They can also be manually invoked via the CLI with `dry run [id] --file [path-with-args]`."
+---
+
+There are two primary ways to pass parameters to this endpoint: **Using Custom Configuration** and **Using Default Configuration**.
+
+## Using Custom Configuration
+
+A custom configuration empowers you with more control over the execution. The settings for this custom run are defined by the `RunConfig` struct:
+
+- **`auth`**: An optional authentication object representing a DryMerge API key. While it's possible to provide the raw API key, it's not recommended due to security concerns.
+
+- **`inject`**: A set of states you wish to incorporate into the context, useful for scenarios such as secret management.
+
+- **`swap`**: Allows for the replacement of specified API requests—ideal for testing on local endpoints.
+
+- **`enable_secrets`**: A boolean flag that, when set to false, disables secret fetching. This can expedite calls to endpoints that don't necessitate secrets by bypassing the wait for the secret driver response.
+
+- **`meta`**: A collection of metadata values. This section is typically used for arguments passed internally by the DryMerge engine, like the "diff" object from trigger executions.
+
+### Example with Custom Configuration:
+
+```json
+{
+  "config": {
+    "auth": "your-api-key-here",
+    "inject": {
+      "drymerge/secrets/state.state": "{{secrets.my-api-key}}"
+    },
+    "swap": {
+      "drymerge/weather/weather-api.api": {
+        "url": "http://localhost:8080"
+      }
+    },
+    "enable_secrets": true,
+    "meta": {
+      "someKey": "someValue"
+    }
+  },
+  "args": {
+    "city": "New York",
+    "country": "US"
+  }
+}
+```
+
+### With Default Configuration
+
+If no custom configuration is specified, DryMerge uses a default configuration. This implies:
+
+- No custom authentication will be used.
+- No state will be injected into the context.
+- No request swaps will be performed.
+- Secrets will not be fetched.
+- No custom meta arguments will be passed.
+
+#### Example with Default Configuration
+
+Here's an example JSON payload that uses the default configuration:
+
+```json
+{
+  "args": {
+    "city": "New York",
+    "country": "US"
+  }
+}
+```
+
+
+In this case, you simply pass the `id` and any `args` you have for the node. DryMerge will use its default settings.

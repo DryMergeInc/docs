@@ -1,0 +1,45 @@
+---
+title: Overview
+description: A high-level overview of DryCli, the CLI used to make developing with DryMerge as easy as possible.
+---
+
+## Installation
+
+To install, run the following command in your terminal:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/DryMergeInc/cli/main/install.sh)"
+```
+
+## Overview
+
+The DryMerge CLI is a command-line tool for interacting with the DryMerge platform, designed for API development and orchestration. The CLI provides functions for user authentication, API graph management, and server interactions.
+
+To get detailed info, run "dry help" or e.g. "dry login".
+
+## Account Commands
+
+- **CreateAccount**: Register a new user account.
+- **Login**: Authenticate and set the session for the CLI.
+
+## API Graph Commands
+
+- **Up**: Upload a JSON file to create or update entities in your account.
+- **Run**: Execute an API graph based on a root identity and optional configuration file.
+
+## Utility Commands
+
+- **Dash**: Generate a dashboard for a specific entity ID.
+- **Visualize**: Render a visualization of an API graph.
+- **Check**: Validate a json file prior to upserting.
+
+## Server Interaction
+
+- **Ping**: Check server availability.
+- **Whoami**: Validate the current login session on the server.
+
+## Other
+
+- **Make**: Generate an API graph based on a textual description.
+- **Secret**: Add or remove secrets in an API State.
+

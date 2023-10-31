@@ -1,0 +1,198 @@
+---
+title: "Entity Basics"
+description: "Entities are the constituents of a DryMerge workflow (think of them as nodes in a dependency graph). They are the building blocks of a DryMerge workflow. "
+---
+
+## Names, Permissions, Transformations, and Maps
+ Since we form a dependency graph that can only be modified and ran by specific people, we need a way to specify (1): names for objects and (2): permissions. We do this with the `"id"` and `"perms"` fields. Somet imes, we also need to apply common data transformations or to apply a node's logic to every element of an iterable. We do this with the `transform` and `map` fields. Occasionally, we want to handle an error popping up from an API or function call. We do this with the `error` field Let's look at each of these in detail.
+
+### `id` Field
+
+The `id` field serves as a unique identifier for each object within DryMerge. It follows a specific structure, formatted as `[organization]/[namespace]/[name].[type]:[version]`.
+
+- **Organization**: Specifies the group or company that created the object. This is usually your own organization.
+- **Namespace**: Provides a logical grouping for the object, often indicating its functional domain.
+- **Name**: A self-explanatory, specific name for the object.
+- **Type**: Indicates what type of object this is. The DryMerge engine recognizes these as one of `api`, `merge`, `state`, `route`, or `request`.
+- **Version**: (Optional) A numerical identifier for the object's version. It is often omitted but can be used to refer to specific revisions of an object.
+
+**Examples**:
+- `drymerge/myApp/user.api`
+- `drymerge/payments/transaction.route:1`
+
+**A Note on Inference**:
+Since identities can be lengthy to type out in full, DryMerge script also supports shorthand notation. You can specify your organization at the top level of your script, e.g. `organization: my-org`. Then, you can omit the organization from your `id` fields, e.g. `my-org/myApp/user.api` becomes `myApp/user.api`. We can further infer namespace: if we omit namespace in the script, we use the default namespace ~. So `myApp/user.api` would simply become `user.api`. It's fullname would be `my-org/~/user.api` (note the default namespace in place of `myApp`).
+### `perms` Field
+
+The `perms` field provides information related to permissions, which are crucial for access control.
+
+### Permissions
+
+Permissions in DryMerge are represented as the `perms` structure, a mapping between `Action` types and a list of `Condition` checks. This enables granular control over who can perform what action on a given object.
+
+The `Action` types can be one of:
+- `Create`: Permission to create a new instance of the object.
+- `Read`: Permission to read or view the object.
+- `Update`: Permission to modify the object.
+- `Delete`: Permission to remove the object.
+- `Execute`: Permission to execute actions related to the object.
+- `Search`: Permission to search within the object.
+
+The `Condition` checks can include:
+- `UserIsCreator`: The user must be the creator of the object.
+- `UserIsSameNamespace`: The user must belong to the same namespace as the object.
+- `UserIsMemberOfOrganization`: The user must be a member of the organization that owns the object.
+- `UserIsAdminOfOrganization`: The user must be an administrator of the organization that owns the object.
+- `UserIsDrymergeAdmin`: The user must be an administrator of the DryMerge system.
+
+**Example Permissions**:
+
+```yaml
+perms:
+  map:
+    Read:
+      - UserIsCreator
+      - UserIsAdminOfOrganization
+    Update:
+      - UserIsCreator
+    Delete:
+      - UserIsAdminOfOrganization
+```
+### Transformations
+
+DryMerge supports transformations to manipulate JSON objects. These transformations are defined as a list in the `transform` field of DryMerge entities and can be applied to any JSON object. Here's a rundown of the different `transform` options.
+
+#### `query` (JmespathTransformation)
+
+The `query` transformation is powered by JMESPath, a query language for JSON. It allows you to extract and transform elements from a JSON document.
+
+**Attributes**:
+- **`expression`**: The JMESPath expression to apply.
+- **`field`**: (Optional) Specifies a field within the input JSON to which the JMESPath expression should be applied. If omitted, the expression will be applied to the entire input.
+
+**Example**:
+```yaml
+transform:
+  - query:
+      expression: 'locations[?state == 'WA'].name | sort(@) | {WashingtonCities: join(', ', @)}'
+      field: data
+```
+#### `validate` (ValidateTransformation)
+
+The `validate` transformation checks the input JSON against a specified JSON schema and ensures the data adheres to the expected format.
+
+**Attributes**:
+- **`schema`**: The JSON schema against which the input will be validated.
+- **`field`**: (Optional) If specified, only this field from the input JSON will be validated against the schema.
+
+**Example**:
+```yaml
+transform:
+  - validate:
+      field: user
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+        required:
+          - name
+```
+#### `extract` (ExtractTransformation)
+
+The `extract` transformation allows you to select a specific field from the input JSON, effectively filtering out other fields.
+
+**Attributes**:
+- **`field`**: Specifies the field to be extracted from the input JSON.
+
+**Example**:
+```yaml
+transform:
+  - extract:
+      field: user.details
+```
+#### Order of Operations
+
+Transformations are applied in the order they are listed. For example, if you first use an `extract` transformation to narrow down the input JSON and then apply a `query` transformation, the `query` will only be applied to the filtered JSON from the `extract` operation.
+
+**Example**:
+```yaml
+transform:
+  - extract:
+      field: user
+  - query:
+      expression: 'details.age'
+```
+
+In the example above, the `query` transformation is only applied to the `user` field extracted in the previous step.
+
+
+### Mapping Over Iterables with `map`
+
+DryMerge provides functionality to iterate over elements of a collection, applying a specific node to each element. This iterative operation is defined using the `map` field available in every DryMerge node. By utilizing this feature, users cac map a DryMerge node over each item in an iterable, producing a new iterable with results.
+
+#### Attributes of `map`
+
+- **`field`**: Specifies the field in the context that contains the iterable. This field must be a collection, such as an array, over which the node will iterate.
+
+#### Example of `map` in Action
+
+Consider a scenario where you want to apply a transformation to each secret in a list. Here's how you'd structure your DryMerge configuration:
+
+```yaml
+aggregate.merge:
+  merge:
+    lmao:
+      dry_string: '{{context.reflect}}'
+  dependencies:
+    reflect:
+      id: reflect.merge
+      args:
+        all:
+          - 'secret1'
+          - 'secret2'
+          - 'secret3'
+reflect.merge:
+  map:
+    field: 'context.all'
+  merge:
+    secret:
+      dry_string: 'Here is the secret! {{map}}'
+```
+
+In this example, the reflect.merge node maps over each secret provided in the context.all array. For each secret, the node processes it and appends the result to a new iterable. This makes it incredibly powerful for batch processing and transformations over collections.
+
+
+## Error Handling
+
+The `error` field allows you to define error handling strategies for your entities. You can retry your workflow, specify what other workflows actions to start based on different error statuses, and set a default error response.
+
+**Attributes**:
+- **`handle`**: A list of error handlers, where each handler is associated with a specific status or range of statuses.
+    - **`status`**: The HTTP status or a range of statuses that this handler will catch. Ranges can be defined as `"200:299"` or a single status as `"404"`.
+    - **`using`**: The action to take when the error is caught. This can be one of two types:
+        - **`hit`**: Trigger another API or function.
+        - **`retry`**: Retry the current operation after a specified delay.
+    - **`delay`**: (Optional, only for `retry`) The delay in milliseconds before retrying the operation.
+- **`default`**: A default message or action to take if none of the error handlers catch the error.
+- **`attempts`**: (Optional) The maximum number of attempts for error handling. Defaults to 5.
+
+**Example**:
+```yaml
+error:
+  handle:
+    - status: '500'
+      using:
+        retry:
+          delay: 4000
+    - status: '400:499'
+      using:
+        hit:
+          id: some.api
+  default: 'An unexpected error occurred'
+  attempts: 3
+```
+
+In the example above, if a `500` status error occurs, the system will retry the operation after a 4-second delay. For client errors ranging from `400` to `499`, another API identified by `some.api` will be triggered. If none of the error handlers catch the error, a default message "An unexpected error occurred" will be returned, and the entire process will attempt a maximum of 3 times.
+
+This powerful error handling mechanism ensures that your DryMerge workflows can gracefully handle errors and take appropriate actions, enhancing the robustness of your applications.

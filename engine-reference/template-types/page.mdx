@@ -1,0 +1,118 @@
+---
+title: "Imports & Templates"
+description: "To reduce boilerplate and tap into the ecosystem, DryMerge supports importing external entities with modifications you'd like to make applied to them. Furthermore, DryMerge supports the definition of `templates`, which can either be imported or called via an API to programmatically generate entities without defining redundant YAML."
+---
+
+## Imports
+
+Imports in DryMerge allow for the inclusion of pre-defined entities with the ability to modify or alias their attributes. The import mechanism enables DryMerge configurations to be more modular and reusable.
+
+### Anatomy of an Import
+
+An import object comprises several key fields:
+
+- **`id`**: A unique identifier for the import.
+- **`use`**: A mapping of entities to be imported and their desired aliases in the current configuration.
+- **`but`**: (Optional) Modifications to apply to the imported entities.
+- **`hydrate`**: (Optional) Values to fill into templates when importing them.
+
+### Example 1: Importing a Gmail Trigger
+
+In this example, a Gmail trigger template is imported and hydrated with specific values.
+
+```yaml
+organization: DryMerge
+version: 1
+infra:
+  our_trigger.import:
+    use:
+      # Note that when we import from a template, we can use _ to use the template's provided name instead of a new alias.
+      customer-gmail-trigger.template: _
+    hydrate:
+      user_id: 'edward'
+      refresh_token: 'MY_REFRESH_TOKEN'
+      message: 'Edward received a new email!! Huge for us!'
+```
+### Example 2: Importing and Modifying an Existing API Node
+
+In this example, we import an existing API node called `entrypoint.api` and modify its behavior by adding a sleep operation.
+
+Initial node:
+```yaml
+  entrypoint.api:
+    request:
+      url: https://httpstat.us/200
+      method: GET
+    dependencies:
+      xd:
+        id: trigger-initial.api
+```
+
+
+Modified using an import:
+```yaml
+organization: DryMerge
+version: 1
+nodes:
+  new_entrypoint.import:
+    use:
+      entrypoint.api: modified_entrypoint.api
+    but:
+      <modified_entrypoint.api>.request.url: https://httpstat.us/200?sleep=5000  # Add a sleep of 5 seconds before the request
+```
+
+In the modified version, we've imported the entrypoint.api node as modified_entrypoint.api and added a sleep of 5 seconds before the request is executed.
+
+## Templates
+
+Templates in DryMerge provide a reusable blueprint for defining entities. They allow for the specification of placeholders, which can be filled in at a later time, either during import or when calling a specific API. This ensures that repetitive configurations can be abstracted away into templates, allowing for more modular and maintainable DryMerge code.
+
+### Anatomy of a Template
+
+In DryMerge, a `Template` serves as a blueprint for defining entities with placeholders. These placeholders can be filled in at a later time, either during import or when calling a specific API endpoint, enabling a dynamic and flexible configuration.
+
+Here's a breakdown of the primary components within a template:
+
+- **`id`:** A unique identifier for the template. This typically follows the pattern `[organization]/[namespace]/[name].[type]:[version]`.
+
+- **`content`:** The main body of the template, containing the entities and configurations it represents. This section can have placeholders, denoted by `{{template.placeholder_name}}`, which are expected to be provided values when the template is used.
+
+- **`schemas`:** (Optional) This section can be used to define JSON schemas that validate the structure and content of provided data when the template is instantiated.
+
+- **`perms`:** (Optional) Permissions related to the node.
+
+- **`metadata`:** (Optional) Additional metadata related to the entity.
+
+For instance, in our earlier Gmail monitoring example:
+
+
+Here's an example of a template:
+
+```yaml
+organization: DryMerge
+version: 1
+templates:
+  # This template lays out all the entities needed to monitor a specific user's Gmail account and trigger an action when they receive a new email.
+  customer-gmail-trigger.template:
+    content:
+      # This is the trigger for a specific user's Gmail account
+      google/new-gmail-{{template.user_id}}.trigger:
+        running: true
+        check:
+          hit:
+            id: google/emails-{{template.user_id}}.api
+          schedule: '1/5 * * * * *'
+        conditions:
+          if-new-email-received:
+            - field: 'messages'
+              diff:
+                query: 'length(@) > `0`'
+        then:
+          hit:
+            id: google/action-{{template.user_id}}.api
+            with:
+              message: '{{template.user_id}} received a new email!!'
+      ... # Rest of the template content
+```
+
+The placeholder `{{template.user_id}}` in the content section denotes a variable part of the configuration, which is expected to be provided a specific value when the template is instantiated. This allows the same template to be reused for monitoring different Gmail users by simply providing different user_id values during instantiation. Templates streamline configurations in DryMerge, allowing for modularity and reusability across different scenarios.
