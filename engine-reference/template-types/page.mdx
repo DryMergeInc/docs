@@ -15,8 +15,9 @@ An import object comprises several key fields:
 - **`use`**: A mapping of entities to be imported and their desired aliases in the current configuration.
 - **`but`**: (Optional) Modifications to apply to the imported entities.
 - **`hydrate`**: (Optional) Values to fill into templates when importing them.
+- **`replace`** (Optional) A string to string mapping of raw strings to replace in the imported entities.
 
-### Example 1: Importing a Gmail Trigger
+### Example 1: Importing a Gmail Trigger Template
 
 In this example, a Gmail trigger template is imported and hydrated with specific values.
 
@@ -78,6 +79,8 @@ Here's a breakdown of the primary components within a template:
 - **`content`:** The main body of the template, containing the entities and configurations it represents. This section can have placeholders, denoted by `{{template.placeholder_name}}`, which are expected to be provided values when the template is used.
 
 - **`schemas`:** (Optional) This section can be used to define JSON schemas that validate the structure and content of provided data when the template is instantiated.
+
+- **`defaults`:** (Optional) This section can be used to define default values for the template's placeholders.
 
 - **`perms`:** (Optional) Permissions related to the node.
 
