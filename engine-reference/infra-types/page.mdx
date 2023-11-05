@@ -24,7 +24,7 @@ The conditions within the `Triggers` use the `JsonDiffWorker` mechanism, which p
 Each condition in the `conditions` list has a set of attributes:
 
 - **`field`**: (Optional) If specified, only checks this field from the fetched data.
-- **`before`, `after`, `diff`, `reverse_diff`**: These attributes are used to inspect changes in the fetched data. Specifically, they're JsonDiff expressions that allow you to compare the data before and after the `check` is executed. `before` and `after` represent the results of the check prior to the current timestep and at the current timestep. The `diff` and `reverse_diff` attributes represent the difference between the `before` and `after` data, and the difference between the `after` and `before` data, respectively. These are usually used for iterables (e.g. two lists, before and after); if the `diff` or `reverse_diff` is empty, that means there's no difference between the two iterable data sets.
+- **`before`, `after`, `diff`, `reverse_diff`**: These attributes are used to inspect changes in the fetched data. Specifically, they're JsonDiff expressions that allow you to compare the data before and after the `check` is executed. `before` and `after` represent the results of the check prior to the current timestep and at the current timestep. The `diff` and `reverse_diff` attributes represent the difference between iterable `before` and `after` data, and the difference between the `after` and `before` data, respectively. These are usually used for iterables (e.g. two lists, before and after); if the `diff` or `reverse_diff` is empty, that means there's no difference between the two iterable data sets.
 
 #### Diving into JsonDiff Expressions
 

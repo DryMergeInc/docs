@@ -54,6 +54,14 @@
         ]
       },
       {
+        "group": "Prebuilt Nodes",
+        "pages":[
+          "prebuilt-tools/introduction/page",
+          "prebuilt-tools/triggers/page",
+          "prebuilt-tools/syncs/page"
+        ]
+      },
+      {
         "group": "CLI Reference",
         "pages": [
             "cli-reference/overview/page"

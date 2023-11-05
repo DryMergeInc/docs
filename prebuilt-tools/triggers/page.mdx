@@ -1,0 +1,327 @@
+---
+title: Trigger Blocks
+description: "We've built preconfigured triggers for a number of popular services. You can use import these templates into your project and link actions to them. Note that you can always build your own triggers to utilize DryMerge's polling infrastructure directly. Alternatively, you can reach out to us and we'll build it for you. "
+---
+
+# Understanding This Page
+
+Let's start with a basic refresher on DryMerge imports, templates, and triggers.
+1. Each trigger can be imported by specifying the template id and the configurable arguments you'd like to provide (which includes an action).
+2. Each import will instantiate all the template's components, which include the trigger, the polling nodes, and any additional data normalization nodes needed for the trigger to operate predictably.
+
+Here's an example of an import for a common SaaS trigger (new gmail) and the definition of an action for that trigger.
+
+```yaml
+nodes:
+  gmail-trigger.import:
+    use:
+      DryMerge/google/new-gmail.template: _
+    hydrate:
+      action:
+        id: test.merge
+        with:
+         message: 'New Gmail!'
+      access_token: '{{secrets.google_access_token}}'
+  test.merge:
+   merge:
+    my-configured-message:
+      dry_string: '{{context.message}}'
+    data-from-trigger:
+      dry_value: '{{meta}}'
+```
+
+Note here that the template id is `DryMerge/google/new-gmail.template`, the action is defined as `test.merge` and is referenced in the trigger, and we provide the `access_token` argument for authentication.
+
+# Software as a Service Triggers
+We've built triggers for events in common SaaS applications that you may want to use to kick off your workflows.
+
+
+
+## Google
+### New Gmail Received
+#### Name and Components
+- **`template id`**: `DryMerge/google/new-gmail`
+- **`trigger id`**: `google/new-gmail.trigger`
+- **`polling node id 1`**: `google/monitor-emails.polling`
+
+#### Description
+Triggered when a new email is received in a Gmail account associated with an access token.
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this specific trigger. Useful in multi-tenant applications (e.g. listen to customer triggers).
+- **`running`** (Optional): Whether this trigger is currently running. Defaults to `true`.
+- **`schedule`** (Optional): The schedule at which to poll for new emails. Defaults to `1/30 * * * * *` (every 30 seconds).
+- **`access_token`**: The access token to use to access the Gmail account.
+- **`action`**: The workflow action to run when this trigger is fired. Consists of an `id` and `with` field, id being the id of the DryMerge workflow and `with` being the arguments to pass to the workflow.
+
+### New Gmail Draft Created
+#### Name and Components
+- **`template id`**: `DryMerge/google/new-gmail-draft`
+- **`trigger id`**: `google/new-gmail-draft{{template.identifier}}.trigger`
+- **`polling node id`**: `google/monitor-drafts{{template.identifier}}.api`
+
+#### Description
+Triggered when a new draft is created in a Gmail account associated with an access token.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this specific trigger, allowing for differentiation if multiple instances are used.
+- **`running`** (Optional): Specifies whether the trigger is currently active. Defaults to `true`.
+- **`schedule`** (Optional): Defines the polling schedule for checking new drafts. Defaults to `1/10 * * * * *` (every 10 seconds).
+- **`access_token`**: Required for authentication to access the Gmail account.
+- **`action`**: The workflow action to run when this trigger is fired. Includes `id` and `with` parameters, with `id` being the identifier of the DryMerge workflow and `with` being the arguments passed to the workflow.
+
+### New Row Added to Google Sheet
+#### Name and Components
+- **`template id`**: `DryMerge/google/new-spreadsheet-row`
+- **`trigger id`**: `google/new-spreadsheet-row{{template.identifier}}.trigger`
+- **`polling node id`**: `google/monitor-spreadsheet{{template.identifier}}.api`
+
+#### Description
+Triggered when a new row is added to a specified range within a Google Sheet.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this specific trigger.
+- **`running`** (Optional): Whether the trigger is currently active. Defaults to `true`.
+- **`schedule`** (Optional): The frequency of polling for new rows. Defaults to `1/10 * * * * *`.
+- **`access_token`**: Required for Google Sheets API authentication.
+- **`spreadsheet_id`**: The ID of the Google Sheet to monitor.
+- **`range`**: The specific range within the Sheet to monitor for new rows.
+- **`action`**: The action to execute when the trigger fires, defined by an `id` and `with` parameters.
+
+### New Google Calendar Event Created
+#### Name and Components
+- **`template id`**: `DryMerge/google/new-calendar-event`
+- **`trigger id`**: `google/new-calendar-event{{template.identifier}}.trigger`
+- **`polling node id`**: `google/monitor-calendar{{template.identifier}}.api`
+
+#### Description
+Triggered when a new event is created in a Google Calendar.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for the trigger instance.
+- **`running`** (Optional): Indicates if the trigger is currently in operation. Defaults to `true`.
+- **`schedule`** (Optional): The polling interval for new events. Defaults to `1/10 * * * * *`.
+- **`access_token`**: Necessary for authentication to the Google Calendar API.
+- **`calendar_id`**: The ID of the calendar to be monitored.
+- **`action`**: The workflow action that should be initiated when a new event is detected.
+
+### New Drive File Created
+#### Name and Components
+- **`template id`**: `DryMerge/google/new-drive-file`
+- **`trigger id`**: `google/new-drive-file{{template.identifier}}.trigger`
+- **`polling node id`**: `google/monitor-drive{{template.identifier}}.api`
+
+#### Description
+Triggered when a new file is created in Google Drive.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this particular trigger.
+- **`running`** (Optional): Status of the trigger, whether it is on or off. Defaults to `true`.
+- **`schedule`** (Optional): The schedule for checking for new files. Defaults to `1/10 * * * * *`.
+- **`access_token`**: The access token for Google Drive API access.
+- **`action`**: Specifies the action to be taken when a new file is detected, including the `id` of the action and any arguments (`with`).
+
+## Slack
+### New Message Posted to Channel
+#### Name and Components
+- **`template id`**: `DryMerge/slack/new-message`
+- **`trigger id`**: `slack/new-message{{template.identifier}}.trigger`
+- **`polling node id`**: `slack/monitor-messages{{template.identifier}}.api`
+
+#### Description
+Triggered when a new message is posted to a specified Slack channel.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this specific trigger.
+- **`running`** (Optional): Specifies whether the trigger is currently active. Defaults to `true`.
+- **`schedule`** (Optional): Defines the polling schedule for checking new messages. Defaults to `1/10 * * * * *` (every 10 seconds).
+- **`access_token`**: Required for authentication to the Slack API.
+- **`channel`**: The ID of the Slack channel to monitor for new messages.
+- **`action`**: The workflow action to run when this trigger is fired. Includes `id` and `with` parameters, with `id` being the identifier of the DryMerge workflow and `with` being the arguments passed to the workflow.
+
+### New User Added to Space
+#### Name and Components
+- **`template id`**: `DryMerge/slack/new-user`
+- **`trigger id`**: `slack/new-user{{template.identifier}}.trigger`
+- **`polling node id`**: `slack/monitor-users{{template.identifier}}.api`
+
+#### Description
+Triggered when a new user is added to a Slack workspace.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for the trigger instance.
+- **`running`** (Optional): Indicates if the trigger is currently operational. Defaults to `true`.
+- **`schedule`** (Optional): The polling interval for new users. Defaults to `1/10 * * * * *`.
+- **`access_token`**: Necessary for authentication to the Slack users API.
+- **`action`**: The workflow action that should be initiated when a new user is added.
+
+### New Channel Created
+#### Name and Components
+- **`template id`**: `DryMerge/slack/new-channel`
+- **`trigger id`**: `slack/new-channel{{template.identifier}}.trigger`
+- **`polling node id`**: `slack/monitor-channels{{template.identifier}}.api`
+
+#### Description
+Triggered when a new channel is created in a Slack workspace.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this particular trigger.
+- **`running`** (Optional): Status of the trigger, whether it is on or off. Defaults to `true`.
+- **`schedule`** (Optional): The schedule for checking for new channels. Defaults to `1/10 * * * * *`.
+- **`access_token`**: The access token for Slack API access.
+- **`max_pages`**: The maximum number of pages to fetch when paginating through the channel list.
+- **`action`**: Specifies the action to be taken when a new channel is detected, including the `id` of the action and any arguments (`with`).
+
+
+## GitHub
+### New Commit Pushed
+#### Name and Components
+- **`template id`**: `DryMerge/github/new-commit`
+- **`trigger id`**: `github/new-commit{{template.identifier}}.trigger`
+- **`polling node id`**: `github/monitor-commits{{template.identifier}}.api`
+
+#### Description
+Triggered when a new commit is pushed to a specified repository.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this specific trigger.
+- **`running`** (Optional): Specifies whether the trigger is currently active. Defaults to `true`.
+- **`schedule`** (Optional): Defines the polling schedule for checking new commits. Defaults to `1/10 * * * * *` (every 10 seconds).
+- **`access_token`**: Required for authentication to the GitHub API.
+- **`owner`**: The owner of the repository to monitor.
+- **`repo`**: The name of the repository to monitor.
+- **`action`**: The workflow action to run when this trigger is fired. Includes `id` and `with` parameters, with `id` being the identifier of the DryMerge workflow and `with` being the arguments passed to the workflow.
+
+### New Issue Created
+#### Name and Components
+- **`template id`**: `DryMerge/github/new-issue`
+- **`trigger id`**: `github/new-issue{{template.identifier}}.trigger`
+- **`polling node id`**: `github/monitor-issues{{template.identifier}}.api`
+
+#### Description
+Triggered when a new issue is created in a specified repository.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for the trigger instance.
+- **`running`** (Optional): Indicates if the trigger is currently operational. Defaults to `true`.
+- **`schedule`** (Optional): The polling interval for new issues. Defaults to `1/10 * * * * *`.
+- **`access_token`**: Necessary for authentication to the GitHub issues API.
+- **`owner`**: The GitHub username or organization that owns the repository.
+- **`repo`**: The repository name to monitor for issues.
+- **`action`**: The workflow action that should be initiated when a new issue is detected.
+
+### New Pull Request Created
+#### Name and Components
+- **`template id`**: `DryMerge/github/new-pull-request`
+- **`trigger id`**: `github/new-pull-request{{template.identifier}}.trigger`
+- **`polling node id`**: `github/monitor-pulls{{template.identifier}}.api`
+
+#### Description
+Triggered when a new pull request is opened in a specified repository.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this particular trigger.
+- **`running`** (Optional): Status of the trigger, whether it is on or off. Defaults to `true`.
+- **`schedule`** (Optional): The schedule for checking for new pull requests. Defaults to `1/10 * * * * *`.
+- **`access_token`**: The access token for GitHub API access.
+- **`owner`**: The owner of the GitHub repository.
+- **`repo`**: The name of the repository where pull requests are being monitored.
+- **`action`**: Specifies the action to be taken when a new pull request is detected, including the `id` of the action and any arguments (`with`).
+
+## Linear
+### New Issue Created
+#### Name and Components
+- **`template id`**: `DryMerge/linear/new-issue`
+- **`trigger id`**: `linear/new-issue{{template.identifier}}.trigger`
+- **`polling node id`**: `linear/monitor-issues{{template.identifier}}.api`
+
+#### Description
+Triggered when a new issue is created in Linear.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this specific trigger.
+- **`running`** (Optional): Specifies whether the trigger is currently active. Defaults to `true`.
+- **`schedule`** (Optional): Defines the polling schedule for checking new issues. Defaults to `1/30 * * * * *` (every 30 seconds).
+- **`access_token`**: Required for authentication to the Linear API.
+- **`action`**: The workflow action to run when this trigger is fired. Includes `id` and `with` parameters, with `id` being the identifier of the DryMerge workflow and `with` being the arguments passed to the workflow.
+
+### New Project Created
+#### Name and Components
+- **`template id`**: `DryMerge/linear/new-project`
+- **`trigger id`**: `linear/new-project.trigger`
+- **`polling node id`**: `linear/monitor-projects.api`
+
+#### Description
+Triggered when a new project is created in Linear.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for the trigger instance.
+- **`running`** (Optional): Indicates if the trigger is currently operational. Defaults to `true`.
+- **`schedule`** (Optional): The polling interval for new projects. Defaults to `1/30 * * * * *`.
+- **`access_token`**: Necessary for authentication to the Linear projects API.
+- **`action`**: The workflow action that should be initiated when a new project is detected.
+
+## Zendesk
+### New Ticket Created
+#### Name and Components
+- **`template id`**: `DryMerge/zendesk/new-open-ticket`
+- **`trigger id`**: `zendesk/new-open-ticket{{template.identifier}}.trigger`
+- **`polling node id`**: `zendesk/monitor-open-tickets{{template.identifier}}.api`
+
+#### Description
+Triggered when a new ticket with an "open" status is created in Zendesk.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this specific trigger.
+- **`running`** (Optional): Specifies whether the trigger is currently active. Defaults to `true`.
+- **`schedule`** (Optional): Defines the polling schedule for checking new open tickets. Defaults to `1/10 * * * * *` (every 10 seconds).
+- **`access_token`**: Required for authentication to the Zendesk API.
+- **`subdomain`**: The Zendesk subdomain for your specific Zendesk account.
+- **`action`**: The workflow action to run when this trigger is fired. Includes `id` and `with` parameters, with `id` being the identifier of the DryMerge workflow and `with` being the arguments passed to the workflow.
+
+# DeFi Triggers
+
+We've built triggers for a few common blockchains.
+## Bitcoin
+### New Block Created
+#### Name and Components
+- **`template id`**: `DryMerge/bitcoin/new-block`
+- **`trigger id`**: `bitcoin/new-block{{template.identifier}}.trigger`
+- **`polling node id`**: `bitcoin/monitor-blocks{{template.identifier}}.api`
+
+#### Description
+Triggered when a new block is added to the Bitcoin blockchain.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this specific trigger.
+- **`running`** (Optional): Specifies whether the trigger is currently active. Defaults to `true`.
+- **`schedule`** (Optional): Defines the polling schedule for checking new blocks. Defaults to `1/10 * * * * *` (every 10 seconds).
+- **`action`**: The workflow action to run when a new block is detected. Includes `id` and `with` parameters, with `id` being the identifier of the DryMerge workflow and `with` being the arguments passed to the workflow.
+
+## Solana
+### New Block Created
+#### Name and Components
+- **`template id`**: `DryMerge/solana/new-block`
+- **`trigger id`**: `solana/new-block{{template.identifier}}.trigger`
+- **`polling node id`**: `solana/monitor-blocks{{template.identifier}}.merge`
+- **`api node ids`**:
+- `solana/get-blocks{{template.identifier}}.api`
+- `solana/get-block-height{{template.identifier}}.api`
+
+#### Description
+Triggered when new blocks are confirmed on the Solana blockchain.
+
+#### Configurables
+- **`identifier`** (Optional): A unique identifier for this specific trigger.
+- **`running`** (Optional): Specifies whether the trigger is currently active. Defaults to `true`.
+- **`schedule`** (Optional): Defines the polling schedule for checking new blocks. Defaults to `1/2 * * * * *` (every 30 seconds).
+- **`action`**: The workflow action to run when new blocks are detected. Includes `id` and `with` parameters, with `id` being the identifier of the DryMerge workflow and `with` being the arguments passed to the workflow.
+
+#### Mechanism
+- The `solana/monitor-blocks{{template.identifier}}.merge` node depends on two API calls:
+- `solana/get-blocks{{template.identifier}}.api` fetches the latest blocks using the `getBlocks` RPC call, using the most recent block height.
+- `solana/get-block-height{{template.identifier}}.api` retrieves the current block height using the `getBlockHeight` RPC call.
+- The merge node combines the information from the two API calls to determine if there are new blocks.
+- When new blocks are found, the specified `action` is triggered.
+
+#### Dependencies
+- The `getBlocks` call relies on the latest block height from the `getBlockHeight` call.

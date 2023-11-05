@@ -104,7 +104,7 @@ templates:
         check:
           hit:
             id: google/emails-{{template.user_id}}.api
-          schedule: '1/5 * * * * *'
+          schedule: '{{template.schedule}}'
         conditions:
           if-new-email-received:
             - field: 'messages'
@@ -115,7 +115,8 @@ templates:
             id: google/action-{{template.user_id}}.api
             with:
               message: '{{template.user_id}} received a new email!!'
-      ... # Rest of the template content
+  defaults:
+    schedule: '1/5 * * * * *'
 ```
 
-The placeholder `{{template.user_id}}` in the content section denotes a variable part of the configuration, which is expected to be provided a specific value when the template is instantiated. This allows the same template to be reused for monitoring different Gmail users by simply providing different user_id values during instantiation. Templates streamline configurations in DryMerge, allowing for modularity and reusability across different scenarios.
+The placeholder `{{template.user_id}}` in the content section denotes a variable part of the configuration, which is expected to be provided a specific value when the template is instantiated. This allows the same template to be reused for monitoring different Gmail users by simply providing different user_id values during instantiation. We provide defaults for the schedule placeholder in the defaults section, which can be overridden when the template is instantiated. If `schedule` is not provided, it will hydrate as `1/5 * * * * *`.

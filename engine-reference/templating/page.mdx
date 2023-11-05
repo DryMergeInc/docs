@@ -57,14 +57,12 @@ The `schema` field defines a JSON schema that the value must match. If it doesn'
 ### Default Values
 If there's an error with validation but it's recoverable, you might want to add a default value. You can do this with the `default` field. For example, if we wanted to default to "Unknown" if the `name` field was missing, we could do so like this:
 
-```json
-{
-  "custom-name": {
-    "dry_value": "{{human.name}}",
-    "schema": {"type": "string"},
-    "default": "Unknown"
-  }
-}
+```yaml
+custom-name:
+    dry_value: '{{human.name}}'
+    schema:
+      type: string
+    default: "Unknown"
 ```
 
 Say the `human` API changed and name is now, for some reason, an integer. In this case, we'd fail validation but instead of erroring out, we'd default to `"Unknown"`.

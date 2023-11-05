@@ -1,0 +1,300 @@
+---
+title: Sync Blocks
+description: "Data syncs are cronjobs that fetch exhaustive data from external sources and send it to a destination. We've built out a few templates for popular services, but you can also create your own or ask us to add more."
+---
+
+# Understanding This Page
+
+Let's start with a basic refresher on DryMerge imports, templates, and triggers.
+1. Each sync can be imported by specifying the template id and the configurable arguments you'd like to provide (which includes an action).
+2. Each import will instantiate all the template's components, which include the cronjob, the polling nodes, and any additional data normalization nodes needed for the trigger to operate predictably.
+
+Here's an example of an import for a common SaaS trigger (new gmail) and the definition of an action for that trigger.
+
+```yaml
+nodes:
+  google-documents-sync.import:
+    use:
+      DryMerge/google/sync-documents.template: _
+    hydrate:
+      # The pre-existing action that will be used by the trigger
+      base_action:
+        id: test.merge
+     # The name and arguments to be passed to the new action cloned from the base action. The new action will have the sync dependency injected into it, meaning you can reference it with `context.sync` as opposed to `meta` with trigger data.
+      new_action:
+        id: new-test.merge
+      access_token: '{{secrets.google_access_token}}'
+  test.merge:
+    merge:
+      my-configured-message:
+        dry_string: '{{context.sync}}'
+      data-from-trigger:
+        dry_value: '{{meta}}'
+```
+
+Note here that the template id is `DryMerge/google/sync-documents.template`, the action is defined as `test.merge` and is referenced in the trigger, and we provide the `access_token` argument for authentication.
+
+# Software as a Service Syncs
+We've built triggers for events in common SaaS applications that you may want to use to kick off your workflows.
+
+### Google Documents Sync Template
+#### Name and Components
+- **`template id`**: `google/sync-documents.template`
+- **`cron node id`**: `google/sync-documents{{template.identifier}}.cron`
+- **`import node id`**: `google/sync-documents{{template.identifier}}.import`
+- **`api node id for syncing`**: `google/sync-documents{{template.identifier}}.api`
+- **`api node id for fetching all documents`**: `google/fetch-all-documents{{template.identifier}}.api`
+
+#### Description
+Enables synchronization of Google Documents for a specified account, using an access token to authenticate and perform periodic checks based on a schedule.
+
+#### Configurables
+- **`base_action`** The original action to be executed when the cron job is triggered.
+- **`new_action`** The renamed version of the original action to be executed when the cron job is triggered.
+- **`identifier`** (Optional): A unique identifier for this specific template instance, aiding in distinguishing between multiple instances.
+- **`running`** (Optional): Specifies whether the cron job for syncing is currently active. Defaults to `true`.
+- **`schedule`** (Optional): The CRON schedule for triggering the document sync. Defaults to `1/10 * * * * *` (every 10 seconds).
+- **`access_token`**: The OAuth2 access token for accessing the Google Documents API.
+- **`batch_size`**: The number of documents to process in each batch. Defaults to `100`.
+- **`batch_delay`**: The delay in milliseconds between processing batches. Defaults to `5000` (5 seconds).
+- **`max_pages`**: The maximum number of pages to fetch when paginating through documents. Defaults to `2`.
+
+### Google Gmail Sync Template
+#### Name and Components
+- **`template id`**: `google/sync-gmails.template`
+- **`cron node id`**: `google/sync-gmails{{template.identifier}}.cron`
+- **`import node id`**: `google/sync-gmails{{template.identifier}}.import`
+- **`api node id for syncing`**: `google/sync-gmails{{template.identifier}}.api`
+- **`api node id for fetching all emails`**: `google/fetch-all-gmail-emails{{template.identifier}}.api`
+
+#### Description
+Facilitates the synchronization of emails from a Gmail account, using an access token for authentication and conducting periodic checks based on a given schedule.
+
+#### Configurables
+- **`base_action`** The original action to be executed when the cron job is triggered.
+- **`new_action`** The renamed version of the original action to be executed when the cron job is triggered.
+- **`identifier`** (Optional): A unique identifier for this specific template instance.
+- **`running`** (Optional): Indicates if the cron job for syncing emails is active. Defaults to `true`.
+- **`schedule`** (Optional): The CRON schedule for triggering the email sync. Defaults to `1/10 * * * * *` (every 10 seconds).
+- **`access_token`**: The OAuth2 access token for accessing the Gmail API.
+- **`batch_size`**: The number of emails to process in each batch. Defaults to `100`.
+- **`batch_delay`**: The delay in milliseconds between processing batches. Defaults to `5000` (5 seconds).
+- **`max_pages`**: The maximum number of pages to fetch when paginating through emails. Defaults to `2`.
+
+### Google Drafts Sync Template
+#### Name and Components
+- **`template id`**: `google/sync-drafts.template`
+- **`cron node id`**: `google/sync-drafts{{template.identifier}}.cron`
+- **`import node id`**: `google/sync-drafts{{template.identifier}}.import`
+- **`api node id for syncing`**: `google/sync-drafts{{template.identifier}}.api`
+- **`api node id for fetching all drafts`**: `google/fetch-all-drafts{{template.identifier}}.api`
+
+#### Description
+Automates the synchronization of Gmail drafts, using an access token to authenticate and carry out periodic checks according to the specified schedule.
+
+#### Configurables
+- **`base_action`** The original action to be executed when the cron job is triggered.
+- **`new_action`** The renamed version of the original action to be executed when the cron job is triggered.
+- **`identifier`** (Optional): A unique identifier for this specific template instance, for use in multiple instances.
+- **`running`** (Optional): Determines whether the cron job for syncing drafts is currently active. Defaults to `true`.
+- **`schedule`** (Optional): The CRON schedule for triggering the draft sync. Defaults to `1/10 * * * * *` (every 10 seconds).
+- **`access_token`**: The required OAuth2 access token for accessing the Gmail Drafts API.
+- **`batch_size`**: The number of drafts to sync in each batch. Defaults to `100`.
+- **`batch_delay`**: The time delay in milliseconds between batch processing. Defaults to `5000` (5 seconds).
+- **`max_pages`**: The limit on the number of pages to retrieve when paginating through drafts. Defaults to `2`.
+
+### Google Calendar Events Sync Template
+#### Name and Components
+- **`template id`**: `google/sync-calendar-events.template`
+- **`cron node id`**: `google/sync-calendar-events{{template.identifier}}.cron`
+- **`import node id`**: `google/sync-calendar-events{{template.identifier}}.import`
+- **`api node id for syncing`**: `google/sync-calendar-events{{template.identifier}}.api`
+- **`api node id for fetching all events`**: `google/fetch-all-calendar-events{{template.identifier}}.api`
+
+#### Description
+Automates the synchronization of Google Calendar events, using an access token for authentication and to perform periodic syncs based on a set schedule.
+
+#### Configurables
+- **`base_action`** The original action to be executed when the cron job is triggered.
+- **`new_action`** The renamed version of the original action to be executed when the cron job is triggered.
+- **`identifier`** (Optional): A unique identifier for this particular template instance, facilitating the management of multiple instances.
+- **`running`** (Optional): Whether the cron job for syncing calendar events is currently operational. Defaults to `true`.
+- **`schedule`** (Optional): The CRON schedule to trigger the syncing of calendar events. Defaults to `1/10 * * * * *` (every 10 seconds).
+- **`access_token`**: The OAuth2 access token required for accessing the Google Calendar API.
+- **`batch_size`**: The number of events to sync in each batch. Defaults to `100`.
+- **`batch_delay`**: The delay in milliseconds between processing each batch. Defaults to `5000` (5 seconds).
+- **`max_pages`**: The maximum number of pages to be fetched when paginating through the calendar events. Defaults to `2`.
+
+### Google Contacts Sync Template
+#### Name and Components
+- **`template id`**: `google/sync-contacts.template`
+- **`cron node id`**: `google/sync-contacts{{template.identifier}}.cron`
+- **`import node id`**: `google/sync-contacts{{template.identifier}}.import`
+- **`api node id for syncing`**: `google/sync-contacts{{template.identifier}}.api`
+- **`api node id for fetching all contacts`**: `google/fetch-all-contacts{{template.identifier}}.api`
+
+#### Description
+Allows for the synchronization of Google Contacts, utilizing an access token to authenticate and schedule periodic updates.
+
+#### Configurables
+- **`base_action`** The original action to be executed when the cron job is triggered.
+- **`new_action`** The renamed version of the original action to be executed when the cron job is triggered.
+- **`identifier`** (Optional): A unique identifier for each template instance to help manage multiple instances.
+- **`running`** (Optional): Status of the cron job for syncing contacts, with a default value indicating it is running (`true`).
+- **`schedule`** (Optional): The CRON schedule set to trigger the contact sync. Typically defaults to `1/10 * * * * *` (every 10 seconds).
+- **`access_token`**: The necessary OAuth2 access token for the Google Contacts API.
+- **`batch_size`**: The number of contacts to be synchronized in each batch. Usually defaults to `100`.
+- **`batch_delay`**: The interval in milliseconds between the processing of batches. Generally defaults to `5000` (5 seconds).
+- **`max_pages`**: The maximum number of pages to fetch when cycling through contacts. Often defaults to `2`.
+
+### Linear Issue Sync Template
+#### Name and Components
+- **`template id`**: `linear/sync-issues.template`
+- **`cron node id`**: `linear/sync-issues{{template.identifier}}.cron`
+- **`import node id`**: `linear/sync-issues{{template.identifier}}.import`
+- **`api node id`**: `linear/sync-issues{{template.identifier}}.api`
+
+#### Description
+Synchronizes issues from Linear, performing operations based on a GraphQL API call.
+
+#### Configurables
+- **`base_action`** The original action to be executed when the cron job is triggered.
+- **`new_action`** The renamed version of the original action to be executed when the cron job is triggered.
+- **`identifier`** (Optional): A unique string to identify this instance of the template.
+- **`running`** (Optional): Boolean value to indicate if the cron job is active. Defaults to `true`.
+- **`schedule`** (Optional): CRON format string for the job schedule. Defaults to `1/10 * * * * *` (every 10 seconds).
+- **`new_action`**: Specifies the action to trigger.
+- **`access_token`**: OAuth2 token for authentication with Linear's API.
+- **`max_pages`**: The maximum number of pages to query when paginating through issues. Defaults to `5`.
+
+### Linear Project Sync Template
+#### Name and Components
+- **`template id`**: `linear/sync-projects.template`
+- **`cron node id`**: `linear/sync-projects{{template.identifier}}.cron`
+- **`import node id`**: `linear/sync-projects{{template.identifier}}.import`
+- **`api node id`**: `linear/sync-projects{{template.identifier}}.api`
+
+#### Description
+Synchronizes projects from Linear using GraphQL for data fetching and handling pagination.
+
+#### Configurables
+- **`base_action`** The original action to be executed when the cron job is triggered.
+- **`new_action`** The renamed version of the original action to be executed when the cron job is triggered.
+- **`identifier`** (Optional): A unique string to identify different instances of the template.
+- **`running`** (Optional): Boolean value to indicate if the cron job is active, defaulting to `true`.
+- **`schedule`** (Optional): CRON format string for the job schedule, defaulting to `1/10 * * * * *`.
+- **`new_action`**: The action to execute when the cron job is triggered.
+- **`access_token`**: OAuth2 token for authenticating with the Linear API.
+- **`max_pages`**: Maximum number of pages to fetch during pagination. Defaults to `5`.
+
+
+### Notion Document Sync Template
+#### Name and Components
+- **`template id`**: `notion/sync-documents.template`
+- **`cron node id`**: `notion/sync-documents{{template.identifier}}.cron`
+- **`import node id`**: `notion/sync-documents{{template.identifier}}.import`
+- **`api node id`**: `notion/sync-documents{{template.identifier}}.api`
+
+#### Description
+Allows for the synchronization of Notion documents by making a POST request to a specified URL to retrieve page data exhaustively.
+
+#### Configurables
+- **`base_action`** The original action to be executed when the cron job is triggered.
+- **`new_action`** The renamed version of the original action to be executed when the cron job is triggered.
+- **`access_token`**: The access token to authenticate with the Notion API.
+- **`identifier`** (Optional): A unique identifier for the specific instance of the template.
+- **`running`**: (Optional) A boolean indicating whether the cron job is currently active. Defaults to `true`.
+- **`schedule`** (Optional): The CRON schedule for triggering the document sync. Defaults to `1/10 * * * * *` (every 10 seconds).
+
+
+### Slack Messages Sync Template
+#### Name and Components
+- **`template id`**: `slack/sync-messages.template`
+- **`cron node id`**: `slack/sync-messages{{template.identifier}}.cron`
+- **`import node id`**: `slack/sync-messages{{template.identifier}}.import`
+- **`api node id`**: `slack/sync-messages{{template.identifier}}.api`
+- **`fetch all channels node id`**: `slack/fetch-all-channels-for-messages{{template.identifier}}.api`
+
+#### Description
+Syncs messages from Slack channels by utilizing the conversations.history API endpoint, iterating through all channels available to the access token.
+
+#### Configurables
+- **`identifier`** (Optional): An identifier for each instance of the template.
+- **`running`**: Indicates if the cron job is active, with a default of `true`.
+- **`schedule`**: The CRON expression for how often the sync should run, defaulted to `1/10 * * * * *`.
+- **`new_action`**: The action to execute when the cron job is triggered.
+- **`access_token`**: The token used for Slack API authentication.
+- **`batch_size`**: The number of channels to process in one go, defaulted to `10`.
+- **`batch_delay`**: Delay in milliseconds between batch requests, defaulted to `1000`.
+- **`max_pages`**: The maximum number of pagination pages to process, defaulted to `5`.
+
+#### Defaults
+- **`running`**: `true`
+- **`identifier`**: An empty string (indicating no specific identifier by default).
+- **`schedule`**: `1/10 * * * * *` (every 10 seconds).
+- **`max_pages`**: `5`
+- **`batch_size`**: `10`
+- **`batch_delay`**: `1000`
+
+
+### Slack Users Sync Template
+#### Name and Components
+- **`template id`**: `slack/sync-users.template`
+- **`cron node id`**: `slack/sync-users{{template.identifier}}.cron`
+- **`import node id`**: `slack/sync-users{{template.identifier}}.import`
+- **`api node id`**: `slack/sync-users{{template.identifier}}.api`
+
+#### Description
+Syncs user data from Slack by utilizing the users.list API endpoint, supporting pagination to handle a large number of users.
+
+#### Configurables
+- **`identifier`** (Optional): An identifier for each instance of the template.
+- **`running`**: Indicates if the cron job is active, with a default of `true`.
+- **`schedule`**: The CRON expression for how often the sync should run, defaulted to `1/10 * * * * *`.
+- **`new_action`**: The action to execute when the cron job is triggered.
+- **`access_token`**: The token used for Slack API authentication.
+- **`batch_size`**: The number of users to process in one go, defaulted to `10`.
+- **`batch_delay`**: Delay in milliseconds between batch requests, defaulted to `1000`.
+- **`max_pages`**: The maximum number of pagination pages to process, defaulted to `5`.
+
+#### Defaults
+- **`running`**: `true`
+- **`identifier`**: An empty string (indicating no specific identifier by default).
+- **`schedule`**: `1/10 * * * * *` (every 10 seconds).
+- **`max_pages`**: `5`
+- **`batch_size`**: `10`
+- **`batch_delay`**: `1000`
+
+
+### Slack Channels Sync Template
+#### Name and Components
+- **`template id`**: `slack/sync-channels.template`
+- **`cron node id`**: `slack/sync-channels{{template.identifier}}.cron`
+- **`import node id`**: `slack/sync-channels{{template.identifier}}.import`
+- **`api node id`**: `slack/sync-channels{{template.identifier}}.api`
+
+#### Description
+Syncs channel data from Slack by utilizing the conversations.list API endpoint, with pagination support to manage numerous channels.
+
+#### Configurables
+- **`identifier`** (Optional): An identifier for each instance of the template.
+- **`running`**: Indicates if the cron job is active, with a default of `true`.
+- **`schedule`**: The CRON expression for how often the sync should run, defaulted to `1/10 * * * * *`.
+- **`new_action`**: The action to execute when the cron job is triggered.
+- **`access_token`**: The token used for Slack API authentication.
+- **`batch_size`**: The number of channels to process in one go, defaulted to `10`.
+- **`batch_delay`**: Delay in milliseconds between batch requests, defaulted to `1000`.
+- **`max_pages`**: The maximum number of pagination pages to process, defaulted to `5`.
+
+#### Defaults
+- **`running`**: `true`
+- **`identifier`**: An empty string (indicating no specific identifier by default).
+- **`schedule`**: `1/10 * * * * *` (every 10 seconds).
+- **`max_pages`**: `5`
+- **`batch_size`**: `10`
+- **`batch_delay`**: `1000`
+
+
+
+
+
