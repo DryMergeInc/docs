@@ -54,6 +54,13 @@
         ]
       },
       {
+        "group": "Examples",
+        "pages":[
+          "examples/overview/page",
+          "examples/foundations/page"
+        ]
+      },
+      {
         "group": "Prebuilt Nodes",
         "pages":[
           "prebuilt-tools/introduction/page",

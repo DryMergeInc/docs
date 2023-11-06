@@ -1,0 +1,415 @@
+---
+title: Foundational Examples
+description: End-to-end workflows demonstrating the features, syntax, and capabilities of DryMerge.
+---
+
+# Understanding this page
+On this page, we'll walk through an example of a DryMerge workflow. We'll first describe the workflow, discuss key DryMerge concepts showcased by the workflow, show the code, and finally break down key sections of the code with explanations.
+
+
+## Support Bot
+
+### Workflow Description
+This workflow is a simple support bot that dynamically responds to user emails. The workflow is triggered by a user's email. It then consults data stores containing information about the user, their history, and their account. Finally, it sends a response email to the user using an LLM.
+
+### Key Concepts
+1. **Trigger**: The workflow is triggered by an email. The trigger is defined in the `trigger` section of the workflow.
+2. **Multi-Language Functions**: This workflow employs function nodes to hook into existing code and form a workflow over multiple languages.
+3. **Imports and Templates**: Several of the nodes referenced in this workflow are imported via templates, demonstrating code reuse.
+4. **Transformations**: The workflow uses transformations to convert data from one format to another.
+5. **Maps**: The workflow uses a map to apply a node to every member of an iterable.
+6. **Hydration**: The workflow uses JSON templating to hydrate values dynamically.
+
+### Code
+
+#### DryMerge YAML
+First, we have the YAML file that defines the workflow.
+
+```yaml
+organization: DryMerge
+version: 1
+infra:
+  # Set up a trigger to react to a new gmail.
+  monitor-email.import:
+    use:
+      DryMerge/google/new-gmail.template: _
+    hydrate:
+      access_token: '{{secrets.google_access_token}}'
+      action:
+        id: google/send-email.api
+
+nodes:
+  # Send the actual email response back.
+  email-back.import:
+    use:
+      DryMerge/google/send-email.template: _
+    but:
+      <google/send-email-initializer.merge>.dependencies.request-content:
+        id: extract-email.merge
+      <google/send-email-initializer.merge>.dependencies.response:
+        id: respond-to-user.api
+    hydrate:
+      access_token: '{{secrets.google_access_token}}'
+    replace:
+      '{{context.to}}': '{{context.request-content.from}}'
+      '{{context.subject}}': 'Re: {{context.request-content.subject}}'
+      '{{context.body}}': '{{context.response}}'
+
+  # Node that composes a response to the user using the OpenAI API.
+  respond-to-user.import:
+    use:
+      openai/gpt-3.api: respond-to-user.api
+    but:
+      # Set the system instructions to the response-instruction.merge node's output.
+      <respond-to-user.api>.dependencies.meta:
+        id: response-instruction.merge
+      # Set the full context to the response-context.merge node's output.
+      <respond-to-user.api>.dependencies.prompt:
+        id: response-context.merge
+
+  # Merge the data from the extracted email, the user-contextual-data.fn, and the request-urgency.fn nodes.
+  response-context.merge:
+    merge:
+      # Merge the user contextual data and request urgency into the prompt.
+      dry_string: "You're a customer service representative named Edward. This is a service request that you are to respond to: {{context.request-content}}. Here's pertinent user data to help you respond: {{context.user-context}}. The request's urgency is {{context.request-urgency}}."
+    dependencies:
+      request-content:
+        id: extract-email.merge
+      user-context:
+        id: user-contextual-data.fn
+      request-urgency:
+        id: request-urgency.fn
+
+  # Insert some simple data describing how to respond to the user.
+  response-instruction.merge:
+    merge: 'Please respond to the user as a customer service representative. Attempt to resolve the issue. If you cannot resolve the issue, escalate the issue to a manager (with user instructions).'
+
+
+  # Get user data, including purchase history/past interactions from our python service.
+  user-contextual-data.fn:
+    name: 'user-data'
+    with:
+      dry_string: '{{context.request-content.from}}'
+    proxy:
+      id: python-worker.queue
+    dependencies:
+      request-content:
+        id: extract-email.merge
+
+  # Use our TypeScript code to assign an urgency request to the customer.
+  request-urgency.fn:
+    name: 'request-urgency'
+    with:
+      email_content:
+        dry_string: 'Subject: {{context.request-content.subject}} Body: {{context.request-content.body}}'
+      customer_history:
+        dry_value: '{{context.user-context}}'
+    proxy:
+      id: ts-worker.queue
+    dependencies:
+      request-content:
+        id: extract-email.merge
+      user-context:
+        id: user-contextual-data.fn
+
+  # Get the latest new email for the sake of example; we could do it for every email with more maps.
+  extract-email.merge:
+    merge:
+      dry_value: '{{context.request-content.0}}'
+    dependencies:
+      request-content:
+        id: extract-email-content.api
+
+  # Node that extracts the email content from the gmail API.
+  extract-email-content.api:
+    request:
+      url:
+        # Fetch the email content from the map id.
+        dry_string: 'https://www.googleapis.com/gmail/v1/users/me/messages/{{map.id}}'
+      method: GET
+      headers:
+        Authorization:
+          dry_string: 'Bearer {{secrets.google_access_token}}'
+
+    # Map over every new email in this meta field.
+    map:
+      field: 'meta.compare.diff'
+
+    # 3 quick transformations to extract readable data from the API response.
+    transform:
+      - query:
+          expression: |
+            {
+              from: payload.headers[?name=='From'].value | [0],
+              subject: payload.headers[?name=='Subject'].value | [0],
+              body: payload.parts[?mimeType=='text/plain'].body.data | [0]
+            }
+      - convert:
+          from: base64
+          to: string
+          field: body
+      - regex:
+          pattern: '<(.+?)>'
+          field: from
+```
+
+#### Auxiliary Python
+Next, we have the Python code that is used to fetch user data.
+
+```python
+import random
+from datetime import datetime, timedelta
+from drymerge import DryClient
+from drymerge.identity import DryId
+
+
+def get_customer_history(customer_email):
+    # Seed the random number generator for consistency
+    random.seed(customer_email)
+
+    # Initialize customer history with some base data
+    customer_history = {
+        "purchase_history": [],
+        "support_history": []
+    }
+
+    # Adding random additional purchase and support history
+    for _ in range(random.randint(1, 5)):
+        days_ago = random.randint(1, 365)
+        purchase_date = (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d")
+        customer_history["purchase_history"].append({
+            "product_id": str(random.randint(1000, 9999)),
+            "product_name": random.choice(["Headphones", "Keyboard", "Monitor"]),
+            "purchase_date": purchase_date
+        })
+
+        issue_date = (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d")
+        customer_history["support_history"].append({
+            "date": issue_date,
+            "issue": random.choice(["Software issue", "Hardware malfunction", "Inquiry about product"])
+        })
+
+    return customer_history
+
+
+client = DryClient(
+    api_key="2730036d8f3978ec80f0d821e8cf2d86d5fcb9e1140cbf2cbbe2f314e45606eb5126d25d0c30277847ba6d1d8fe132ba",
+    proxy_name=DryId("python-worker", "queue"))
+
+client.route("user-data", get_customer_history)
+client.start()
+```
+
+#### Auxiliary Typescript
+And finally we have the typescript code that assigns an urgency level to the customers' request.
+
+```typescript
+
+import { parse, format } from 'date-fns';
+import {DryClient, DryId} from 'drymerge'
+interface Request {
+    email_content: string;
+    customer_history: CustomerHistory;
+}
+
+interface CustomerHistory {
+    support_history?: SupportIssue[];
+    purchase_history?: Purchase[];
+}
+
+interface SupportIssue {
+    date: string;
+}
+
+interface Purchase {
+    purchase_date: string;
+}
+
+function calculateUrgency(request: Request): string {
+    let urgencyScore = 0;
+    const emailContent = request.email_content;
+    const customerHistory = request.customer_history;
+
+    // Increase urgency if the email content contains urgent words
+    const urgentWords = ['urgent', 'asap', 'immediately', 'help'];
+    for (const word of urgentWords) {
+        if (emailContent.toLowerCase().includes(word)) {
+            urgencyScore += 2;
+        }
+    }
+
+    // Increase urgency based on recent unresolved support issues
+    let recentIssues = 0;
+    for (const issue of customerHistory.support_history || []) {
+        const issueDate = parse(issue.date, 'yyyy-MM-dd', new Date());
+        const daysSinceIssue = Math.floor((Date.now() - issueDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSinceIssue < 30) {
+            recentIssues += 1;
+        }
+    }
+
+    if (recentIssues > 3) {
+        urgencyScore += 2;
+    } else if (recentIssues > 0) {
+        urgencyScore += 1;
+    }
+
+    // Adjust urgency based on the customer's purchase history in the last year
+    let purchasesLastYear = 0;
+    for (const purchase of customerHistory.purchase_history || []) {
+        const purchaseDate = parse(purchase.purchase_date, 'yyyy-MM-dd', new Date());
+        const daysSincePurchase = Math.floor((Date.now() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSincePurchase < 365) {
+            purchasesLastYear += 1;
+        }
+    }
+
+    if (purchasesLastYear > 5) {
+        urgencyScore += 1;
+    }
+
+    // Determine urgency level based on the calculated score
+    if (urgencyScore >= 3) {
+        return 'High Urgency';
+    } else if (urgencyScore >= 1) {
+        return 'Medium Urgency';
+    } else {
+        return 'Low Urgency';
+    }
+}
+
+const client = new DryClient(
+    '2730036d8f3978ec80f0d821e8cf2d86d5fcb9e1140cbf2cbbe2f314e45606eb5126d25d0c30277847ba6d1d8fe132ba',
+    false,
+    new DryId('ts-worker', 'queue'),
+);
+
+client.route('request-urgency', calculateUrgency);
+
+client.start();
+```
+
+### Key Section Breakdown
+#### The Trigger
+We see in the first section of the DryMerge workflow under `infra` that we import a template for a new email trigger. We note two configurables passed in through hyration.
+1. The access token, `{{secrets.google_access_token}}`, is a secret that is encrypted and stored in the DryMerge database. It is used to authenticate the workflow with the Gmail API. You can add a secret via the CLI with `dry secret upsert --name <name> --value <value>`.
+2. The action, `google/send-email.api`, is the action that is triggered when a new email is received. This action is defined in the `nodes` section of the workflow.
+#### Multi-Language Functions
+In the Python and Typescript sections, we see existing functions that are connected to the DryMerge workflow layer via the SDK client. Couple of notes:
+1. In both Python and Typescript, we link to a queue with `DryId("python-worker", "queue")` and `new DryId('ts-worker', 'queue')` respectively. Similarly, in the DryMerge YAML, we link to the same queue in our `.fn` function nodes with `python-worker.queue` and `ts-worker.queue`. This is step 1 in linking functions to the workflow layer.
+2. We also specify names of the functions in the SDK client: `client.route("user-data", get_customer_history)` and `client.route('request-urgency', calculateUrgency)`. Those names are also specified in the DryMerge YAML: `name: 'user-data'` and `name: 'request-urgency'`.
+
+#### Imports and Templates
+To actually send off the email, we import a template for the `google/send-email` node. When importing this template, you can see two new sections: a `but` section and a `replace` section.
+1. The `replace` section replaces arbitrary strings in the template with strings we want; perfect for making arguments match the format you receive them. In order to view the arguments used in a template so that you know what you can replace, use the CLI: `dry summarize DryMerge/google/send-email.template` (or whtever the template name is).
+2. The `but` section allows us to index into and change the JSON structure of the template. In this case, we are changing the `dependencies` of the `google/send-email-initializer.merge` node to reflect the output of the `extract-email.merge` and `respond-to-user.api` nodes. Note the `<>` brackets around the node name: this ensures that the engine knows that we're indexing into the string `DryMerge/google/send-email.merge` holistically instead of `DryMerge/google/send-email` and then `merge` of that object.
+
+#### Transformations
+If you check the `extract-email-content.api` node, you'll see that we use a transformation to convert the response from the Gmail API into a more readable format. We use the `query` transformation to extract the `from`, `subject`, and `body` fields from the response. We then use the `convert` transformation to convert the `body` field from base64 to a string. Finally, we use the `regex` transformation to extract the email address from the `from` field. These transformations are applied in order!
+
+#### Maps
+We use a map to extract content from every email passed from the trigger in `extract-email-content.api`. Note that we use the `meta` templating field: this field is passed down by the DryMerge infrastructure that called the workflow. In this case, it comes from the email trigger; the `diff` contains all the new emails received since the last time we checked.
+
+#### Hydration
+We use hydration all over the place here. Note the different types: `context`, `map`, `meta`, and `secrets`.
+1. Context is used to access data passed by the user during the API call or generated by node dependencies.
+2. Map is used to access the current item in an iterable created by the `map` keyword in a node definition.
+3. `meta` is used to access data passed by the DryMerge infrastructure that called the workflow. In this case, it comes from the email trigger; the `diff` contains all the new emails received since the last time we checked.
+3. Secrets is used to access secrets stored in the DryMerge database. You can add a secret via the CLI with `dry secret upsert --name <name> --value <value>`.
+
+
+
+## Search Nodes
+
+### Workflow Description
+The workflows described here utilize search nodes to extract specific data points from dynamic or unstructured content. They illustrate how to configure search nodes to identify and return structured data, such as capital cities from country information or dining capacity from restaurant details.
+
+### Key Concepts
+1. **Search Definition**: Each search node defines what to extract, such as capital cities or currencies, from the content provided.
+2. **Content Provisioning**: The `content` field is used to specify the source of the unstructured data, which can be a dynamic context variable.
+3. **Dependency Management**: Search nodes can depend on other API nodes, leveraging their responses as input for the search.
+4. **Search Parameters**: Within a search node, various parameters such as `name`, `description`, and `type` define the structured data to be extracted.
+5. **Hydration**: Similar to other nodes, search nodes can dynamically hydrate values based on the workflow's context or previous nodes' outputs.
+
+### Code
+
+#### DryMerge YAML
+Here is the YAML file defining the search nodes for extracting country and dining information.
+
+```yaml
+organization: DryMerge
+version: 1
+nodes:
+  country.search:
+    content:
+      dry_value: '{{context.country}}'
+    search:
+      - name: 'capital'
+        description: "What's the capital of the country?"
+        type: string
+      - name: 'currency'
+        description: "What currency does the country use?"
+        type: string
+    dependencies:
+      country:
+        id: country.api
+        args:
+          name: 'Germany'
+
+  country.api:
+    request:
+      url: 'https://restcountries.com/v3.1/name/Germany'
+      method: GET
+
+  dining-info.search:
+    content:
+      dry_value: '{{context.restaurant}}'
+    search:
+      - name: 'address'
+        description: "What's the physical address of the restaurant? Street/directions, etc."
+        type: string
+      - name: 'phone'
+        description: "What's the phone number of the restaurant?"
+        type: string
+        array: true
+      - name: 'capacity'
+        description: "What's the maximum capacity (in seated people) an event at this restaurant can hold? Look for things related to capacity and seating"
+        type: number
+    dependencies:
+      restaurant:
+        id: restaurant.api
+
+  restaurant.api:
+    request:
+      url: https://onemarket.com/private-dining/
+      method: GET
+```
+
+### Key Section Breakdown
+
+#### Search Nodes
+- **`country.search`** and **`dining-info.search`**: These are the search nodes that define what data to extract from the given content. They both utilize a `dry_value` to specify the context from which to extract information, which is the country or restaurant data.
+
+#### Search Parameters
+- Each search node contains a list of search parameters. For instance, `country.search` looks for the capital and currency of a given country, while `dining-info.search` seeks to find address, phone number, and capacity of a restaurant.
+
+#### Dependencies
+- **`country.api`** and **`restaurant.api`**: These nodes are API calls that the search nodes depend on. They fetch the necessary data from external sources which is then processed by the search nodes.
+
+#### API Nodes
+- The API nodes (`country.api` and `restaurant.api`) perform GET requests to specified URLs to retrieve country details and restaurant information, respectively.
+
+#### Content Provisioning
+- The `content` within the search nodes is provided directly by the `dry_value` field, referencing `context.country` or `context.restaurant` as the source for search.
+
+#### Dynamic Configuration
+- The search nodes can be dynamically configured using arguments passed to their dependencies. For example, in `country.api`, the country name 'Germany' is passed as an argument to fetch specific country details.
+
+### Example Use Case: Country Information Search
+
+A user can input a country name, and the `country.search` node will extract structured data such as the capital city and the currency used in the country. This is particularly useful for applications that need to present users with concise information without manual data entry.
+
+### Example Use Case: Restaurant Information Search
+
+In the `dining-info.search` node, a user can provide the name of a restaurant, and the node will extract details such as the address, phone numbers, and seating capacity. This can be leveraged in applications related to event planning or restaurant booking systems to automate the gathering of venue details.
+
